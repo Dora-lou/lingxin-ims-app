@@ -9,7 +9,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="lingxin-ims.css" />
+  <link rel="stylesheet" href="lingxin-ims.css?v=20260514" />
 </head>
 <body>
   <div class="container">
@@ -225,11 +225,11 @@
     <input id="backupFileInput" type="file" accept=".json,application/json" style="display:none" />
   </div>
   <div id="modalOverlay" class="modal-overlay" aria-hidden="true"></div>
-  <script src="lingxin-ims-app.js"></script>
+  <script src="lingxin-ims-app.js?v=20260514"></script>
   <script>
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('./service-worker.js').catch(function (err) {
+      navigator.serviceWorker.register('./service-worker.js?v=20260514').catch(function (err) {
         console.log('SW 注册失败:', err);
       });
     });

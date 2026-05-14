@@ -599,7 +599,6 @@
 
   const els = {
     themeBtn: document.getElementById("themeBtn"),
-    cloudSyncBtn: document.getElementById("cloudSyncBtn"),
     backupExportBtn: document.getElementById("backupExportBtn"),
     backupImportBtn: document.getElementById("backupImportBtn"),
     backupFileInput: document.getElementById("backupFileInput"),
@@ -688,16 +687,22 @@
   }
   setTheme(localStorage.getItem("hardware_ims_theme") === "dark");
 
-  els.themeBtn.addEventListener("click", () => {
-    const cur = document.documentElement.getAttribute("data-theme") === "dark";
-    setTheme(!cur);
-  });
+  if (els.themeBtn) {
+    els.themeBtn.addEventListener("click", () => {
+      const cur = document.documentElement.getAttribute("data-theme") === "dark";
+      setTheme(!cur);
+    });
+  }
 
-  if (els.cloudSyncBtn) {
-    els.cloudSyncBtn.addEventListener("click", () => {
+  // 云同步：用 document 委托，避免按钮在 DOM 中但引用未绑到等情况
+  document.addEventListener(
+    "click",
+    (e) => {
+      const trigger = e.target && e.target.closest && e.target.closest("#cloudSyncBtn");
+      if (!trigger) return;
       try {
-      const cfg = loadCloudConfig() || {};
-      const body = `
+        const cfg = loadCloudConfig() || {};
+        const body = `
         <form class="form-grid" onsubmit="return false;">
           <div class="form-group" style="grid-column:span 2"><label>Supabase URL</label><input id="m_url" placeholder="https://xxxx.supabase.co" value="${escapeHtml(cfg.url || "")}"></div>
           <div class="form-group" style="grid-column:span 2"><label>Supabase anon key</label><input id="m_key" placeholder="ey..." value="${escapeHtml(cfg.anonKey || "")}"></div>
@@ -708,60 +713,59 @@
           <div class="form-group"><button type="button" class="btn-secondary" id="m_push">上传本机到云端</button></div>
         </form>
       `;
-      openModal("云同步设置", body, async () => {
-        const url = document.getElementById("m_url").value.trim();
-        const anonKey = document.getElementById("m_key").value.trim();
-        const bucket = document.getElementById("m_bucket").value.trim() || "lingxin-ims";
-        const code = document.getElementById("m_code").value.trim();
-        if (!url || !anonKey || !code) return alert("请填写 URL、anon key、同步码");
-        const objectPath = `sync/${encodeURIComponent(code)}.json`;
-        const next = { url, anonKey, bucket, code, objectPath };
-        saveCloudConfig(next);
-        alert("已保存云同步配置。可用下方按钮上传/下载。");
-        return true;
-      });
+        openModal("云同步设置", body, async () => {
+          const url = document.getElementById("m_url").value.trim();
+          const anonKey = document.getElementById("m_key").value.trim();
+          const bucket = document.getElementById("m_bucket").value.trim() || "lingxin-ims";
+          const code = document.getElementById("m_code").value.trim();
+          if (!url || !anonKey || !code) return alert("请填写 URL、anon key、同步码");
+          const objectPath = `sync/${encodeURIComponent(code)}.json`;
+          const next = { url, anonKey, bucket, code, objectPath };
+          saveCloudConfig(next);
+          alert("已保存云同步配置。可用下方按钮上传/下载。");
+          return true;
+        });
 
-      // Bind pull/push buttons once modal is present
-      setTimeout(() => {
-        const pullBtn = document.getElementById("m_pull");
-        const pushBtn = document.getElementById("m_push");
-        if (pullBtn)
-          pullBtn.addEventListener("click", async () => {
-            const current = loadCloudConfig() || {};
-            // use modal input values if present
-            const url = document.getElementById("m_url")?.value?.trim() || current.url;
-            const anonKey = document.getElementById("m_key")?.value?.trim() || current.anonKey;
-            const bucket = document.getElementById("m_bucket")?.value?.trim() || current.bucket || "lingxin-ims";
-            const code = document.getElementById("m_code")?.value?.trim() || current.code;
-            const objectPath = `sync/${encodeURIComponent(code)}.json`;
-            const cfg2 = { url, anonKey, bucket, code, objectPath };
-            saveCloudConfig(cfg2);
-            const pulled = await cloudPull(cfg2);
-            if (!pulled) return alert("云端暂无数据（请先在另一台设备上传一次）");
-            state = pulled;
-            saveState(state);
-            fullRender();
-            alert("已从云端下载并覆盖本机");
-          });
-        if (pushBtn)
-          pushBtn.addEventListener("click", async () => {
-            const current = loadCloudConfig() || {};
-            const url = document.getElementById("m_url")?.value?.trim() || current.url;
-            const anonKey = document.getElementById("m_key")?.value?.trim() || current.anonKey;
-            const bucket = document.getElementById("m_bucket")?.value?.trim() || current.bucket || "lingxin-ims";
-            const code = document.getElementById("m_code")?.value?.trim() || current.code;
-            const objectPath = `sync/${encodeURIComponent(code)}.json`;
-            const cfg2 = { url, anonKey, bucket, code, objectPath };
-            saveCloudConfig(cfg2);
-            await cloudPush(cfg2, state);
-            alert("已上传到云端");
-          });
-      }, 0);
+        setTimeout(() => {
+          const pullBtn = document.getElementById("m_pull");
+          const pushBtn = document.getElementById("m_push");
+          if (pullBtn)
+            pullBtn.addEventListener("click", async () => {
+              const current = loadCloudConfig() || {};
+              const url = document.getElementById("m_url")?.value?.trim() || current.url;
+              const anonKey = document.getElementById("m_key")?.value?.trim() || current.anonKey;
+              const bucket = document.getElementById("m_bucket")?.value?.trim() || current.bucket || "lingxin-ims";
+              const code = document.getElementById("m_code")?.value?.trim() || current.code;
+              const objectPath = `sync/${encodeURIComponent(code)}.json`;
+              const cfg2 = { url, anonKey, bucket, code, objectPath };
+              saveCloudConfig(cfg2);
+              const pulled = await cloudPull(cfg2);
+              if (!pulled) return alert("云端暂无数据（请先在另一台设备上传一次）");
+              state = pulled;
+              saveState(state);
+              fullRender();
+              alert("已从云端下载并覆盖本机");
+            });
+          if (pushBtn)
+            pushBtn.addEventListener("click", async () => {
+              const current = loadCloudConfig() || {};
+              const url = document.getElementById("m_url")?.value?.trim() || current.url;
+              const anonKey = document.getElementById("m_key")?.value?.trim() || current.anonKey;
+              const bucket = document.getElementById("m_bucket")?.value?.trim() || current.bucket || "lingxin-ims";
+              const code = document.getElementById("m_code")?.value?.trim() || current.code;
+              const objectPath = `sync/${encodeURIComponent(code)}.json`;
+              const cfg2 = { url, anonKey, bucket, code, objectPath };
+              saveCloudConfig(cfg2);
+              await cloudPush(cfg2, state);
+              alert("已上传到云端");
+            });
+        }, 0);
       } catch (err) {
         alert("打开云同步失败：" + (err && err.message ? err.message : String(err)));
       }
-    });
-  }
+    },
+    false,
+  );
 
   els.tabBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
