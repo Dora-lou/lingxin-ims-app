@@ -640,6 +640,7 @@
     arCreditTbody: document.getElementById("arCreditTbody"),
     arPaidTbody: document.getElementById("arPaidTbody"),
     receiptTbody: document.getElementById("receiptTbody"),
+    arSearchFilter: document.getElementById("arSearchFilter"),
     aDate: document.getElementById("aDate"),
     aWarehouse: document.getElementById("aWarehouse"),
     aProduct: document.getElementById("aProduct"),
@@ -679,6 +680,11 @@
     productStatsTbody: document.getElementById("productStatsTbody"),
     categoryStatsTbody: document.getElementById("categoryStatsTbody"),
     trendChart: document.getElementById("trendChart"),
+    bsStart: document.getElementById("bsStart"),
+    bsEnd: document.getElementById("bsEnd"),
+    bestsellerForm: document.getElementById("bestsellerForm"),
+    bestsellerProductTbody: document.getElementById("bestsellerProductTbody"),
+    bestsellerCategoryTbody: document.getElementById("bestsellerCategoryTbody"),
   };
 
   function setTheme(dark) {
@@ -968,9 +974,37 @@
 
   function renderReceivables() {
     syncAllComputed(state);
+    const arQ = (els.arSearchFilter && els.arSearchFilter.value.trim()) || "";
+    const arQL = arQ.toLowerCase();
+
+    function arTextMatch(hay, needle) {
+      if (!needle) return true;
+      return String(hay || "").toLowerCase().includes(needle);
+    }
+
+    function saleCustLabel(s) {
+      return String(s.customerName || "").trim() || "（未填写客户）";
+    }
+
+    function saleMatchesSearch(s) {
+      if (!arQL) return true;
+      return arTextMatch(saleCustLabel(s), arQL) || arTextMatch(s.product, arQL);
+    }
+
+    function summaryCustomerVisible(name) {
+      if (!arQL) return true;
+      if (arTextMatch(name, arQL)) return true;
+      return state.sales.some((s) => {
+        if (creditRemaining(s) <= 0.001) return false;
+        if (saleCustLabel(s) !== name) return false;
+        return arTextMatch(s.product, arQL);
+      });
+    }
+
     const balances = arCustomerBalances(state);
     els.arSummaryTbody.innerHTML = "";
     Array.from(balances.entries())
+      .filter(([name]) => summaryCustomerVisible(name))
       .sort((a, b) => b[1] - a[1])
       .forEach(([name, bal]) => {
         const tr = document.createElement("tr");
@@ -979,13 +1013,16 @@
       });
     if (!els.arSummaryTbody.children.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="2" class="muted">暂无欠款客户</td>`;
+      tr.innerHTML =
+        balances.size === 0
+          ? `<td colspan="2" class="muted">暂无欠款客户</td>`
+          : `<td colspan="2" class="muted">${arQL ? "无匹配记录（试试别的关键词）" : "暂无欠款客户"}</td>`;
       els.arSummaryTbody.appendChild(tr);
     }
 
     els.arCreditTbody.innerHTML = "";
     const unpaidRows = state.sales
-      .filter((s) => creditRemaining(s) > 0.001)
+      .filter((s) => creditRemaining(s) > 0.001 && saleMatchesSearch(s))
       .sort((a, b) => cmpDate(a.date, b.date));
     unpaidRows.forEach((s) => {
       const tr = document.createElement("tr");
@@ -1003,7 +1040,7 @@
     });
     if (!els.arCreditTbody.children.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="8" class="muted">暂无未结清欠款</td>`;
+      tr.innerHTML = `<td colspan="8" class="muted">${arQL ? "无匹配记录" : "暂无未结清欠款"}</td>`;
       els.arCreditTbody.appendChild(tr);
     }
 
@@ -1011,7 +1048,12 @@
     if (paidTbody) {
       paidTbody.innerHTML = "";
       const paidRows = state.sales
-        .filter((s) => creditRemaining(s) <= 0.001 && (num(s.arReceiptAllocated) > 0 || num(s.arManualPaid) > 0 || num(s.paidAtSale) < num(s.amount)))
+        .filter(
+          (s) =>
+            creditRemaining(s) <= 0.001 &&
+            (num(s.arReceiptAllocated) > 0 || num(s.arManualPaid) > 0 || num(s.paidAtSale) < num(s.amount)) &&
+            saleMatchesSearch(s)
+        )
         .sort((a, b) => -cmpDate(a.date, b.date));
       paidRows.forEach((s) => {
         const tr = document.createElement("tr");
@@ -1030,13 +1072,18 @@
       });
       if (!paidTbody.children.length) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td colspan="8" class="muted">暂无已结清记录</td>`;
+        tr.innerHTML = `<td colspan="8" class="muted">${arQL ? "无匹配记录" : "暂无已结清记录"}</td>`;
         paidTbody.appendChild(tr);
       }
     }
 
     els.receiptTbody.innerHTML = "";
+    const receiptMatches = (r) => {
+      if (!arQL) return true;
+      return arTextMatch(r.customerName, arQL) || arTextMatch(r.note, arQL);
+    };
     [...state.receipts]
+      .filter(receiptMatches)
       .sort((a, b) => -cmpDate(a.date, b.date))
       .forEach((r) => {
         const tr = document.createElement("tr");
@@ -1048,6 +1095,11 @@
           <td data-label="操作"><button type="button" class="btn-danger" data-del-r="${r.id}">删除</button></td>`;
         els.receiptTbody.appendChild(tr);
       });
+    if (!els.receiptTbody.children.length) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" class="muted">${arQL ? "无匹配记录" : "暂无收款记录"}</td>`;
+      els.receiptTbody.appendChild(tr);
+    }
     els.receiptTbody.querySelectorAll("[data-del-r]").forEach((b) => {
       b.addEventListener("click", () => {
         const id = b.getAttribute("data-del-r");
@@ -1361,6 +1413,51 @@
           <td data-label="利润贡献占比">${share.toFixed(1)}%</td>`;
         els.categoryStatsTbody.appendChild(tr);
       });
+
+    if (els.bestsellerProductTbody && els.bestsellerCategoryTbody) {
+      const bsS = (els.bsStart && els.bsStart.value.trim()) || start;
+      const bsE = (els.bsEnd && els.bsEnd.value.trim()) || end;
+      const { sales: fsRank } = filterRows(state, bsS, bsE, wh, cat);
+
+      const prodRank = new Map();
+      fsRank.forEach((s) => {
+        const k = productKey(s.product);
+        if (!k) return;
+        const o = prodRank.get(k) || { label: String(s.product || "").trim() || k, qty: 0, rev: 0 };
+        o.qty += num(s.qty);
+        o.rev += num(s.amount);
+        prodRank.set(k, o);
+      });
+      const prodRows = Array.from(prodRank.values()).sort((a, b) => b.rev - a.rev || b.qty - a.qty);
+      els.bestsellerProductTbody.innerHTML = "";
+      prodRows.forEach((o, i) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td data-label="名次">${i + 1}</td><td data-label="商品">${escapeHtml(o.label)}</td><td data-label="销售数量">${o.qty.toFixed(2)}</td><td data-label="销售额">${money(
+          o.rev
+        )}</td>`;
+        els.bestsellerProductTbody.appendChild(tr);
+      });
+
+      const catRank = new Map();
+      fsRank.forEach((s) => {
+        const cid = s.categoryId;
+        const o = catRank.get(cid) || { qty: 0, rev: 0 };
+        o.qty += num(s.qty);
+        o.rev += num(s.amount);
+        catRank.set(cid, o);
+      });
+      const catRows = Array.from(catRank.entries())
+        .map(([cid, o]) => ({ cid, qty: o.qty, rev: o.rev }))
+        .sort((a, b) => b.rev - a.rev || b.qty - a.qty);
+      els.bestsellerCategoryTbody.innerHTML = "";
+      catRows.forEach((o, i) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td data-label="名次">${i + 1}</td><td data-label="分类">${escapeHtml(catName(state, o.cid))}</td><td data-label="销售数量">${o.qty.toFixed(2)}</td><td data-label="销售额">${money(
+          o.rev
+        )}</td>`;
+        els.bestsellerCategoryTbody.appendChild(tr);
+      });
+    }
   }
 
   function fullRender() {
@@ -1464,6 +1561,10 @@
     fullRender();
   });
 
+  if (els.arSearchFilter) {
+    els.arSearchFilter.addEventListener("input", renderReceivables);
+  }
+
   els.adjustForm.addEventListener("submit", (e) => {
     e.preventDefault();
     const row = {
@@ -1546,8 +1647,17 @@
     els.fWarehouse.value = "";
     els.fCategory.value = "";
     els.fGroup.value = "day";
+    if (els.bsStart) els.bsStart.value = "";
+    if (els.bsEnd) els.bsEnd.value = "";
     renderAnalytics();
   });
+
+  if (els.bestsellerForm) {
+    els.bestsellerForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      renderAnalytics();
+    });
+  }
 
   els.exportMonthBtn.addEventListener("click", () => {
     const y = new Date().getFullYear();

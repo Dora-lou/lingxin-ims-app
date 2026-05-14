@@ -28,6 +28,7 @@
       <button class="tab-btn" data-tab="sales">销售管理</button>
       <button class="tab-btn" data-tab="receivables">应收账款</button>
       <button class="tab-btn" data-tab="inventory">库存管理</button>
+      <button class="tab-btn" data-tab="basics">基础设置</button>
       <button class="tab-btn" data-tab="analytics">统计分析</button>
     </div>
 
@@ -36,12 +37,12 @@
       <div class="card">
         <form id="purchaseForm" class="form-grid">
           <div class="form-group"><label>日期</label><input type="date" id="pDate" required /></div>
-          <div class="form-group"><label>供应商</label><input type="text" id="pSupplier" required /></div>
           <div class="form-group"><label>商品名称</label><input type="text" id="pProduct" list="productList" required /></div>
-          <div class="form-group"><label>分类</label><select id="pCategory"></select></div>
-          <div class="form-group"><label>入库仓库</label><select id="pWarehouse"></select></div>
           <div class="form-group"><label>数量</label><input type="number" id="pQty" min="0.01" step="0.01" required /></div>
           <div class="form-group"><label>单价</label><input type="number" id="pPrice" min="0" step="0.01" required /></div>
+          <div class="form-group"><label>分类</label><select id="pCategory"></select></div>
+          <div class="form-group"><label>供应商</label><input type="text" id="pSupplier" required /></div>
+          <div class="form-group"><label>入库仓库</label><select id="pWarehouse"></select></div>
           <div class="form-group"><button class="btn-primary" type="submit">新增进货</button></div>
         </form>
       </div>
@@ -92,6 +93,14 @@
 
     <section class="panel" id="tab-receivables">
       <h2 class="title">应收账款</h2>
+      <div class="card">
+        <form class="form-grid" onsubmit="return false;">
+          <div class="form-group" style="grid-column:span 2">
+            <label>快速查找</label>
+            <input type="text" id="arSearchFilter" placeholder="客户名、商品名；收款记录还可按备注筛选" list="customerList" autocomplete="off" />
+          </div>
+        </form>
+      </div>
       <div class="card">
         <h3 class="muted" style="margin-top:0">登记收款（按客户自动核销最早赊欠）</h3>
         <form id="receiptForm" class="form-grid">
@@ -145,6 +154,25 @@
         </form>
       </div>
       <div class="card">
+        <div class="form-group"><label>库存查看仓库</label><select id="invWarehouseFilter"><option value="">全部仓库</option></select></div>
+      </div>
+      <p class="muted">当前库存（按仓库）</p>
+      <div class="table-wrap" style="margin-bottom:12px">
+        <table><thead><tr><th>仓库</th><th>商品</th><th>分类</th><th>库存数量</th><th>库存均价</th><th>库存成本</th></tr></thead><tbody id="inventoryTbody"></tbody></table>
+      </div>
+      <p class="muted">调拨记录</p>
+      <div class="table-wrap" style="margin-bottom:12px">
+        <table><thead><tr><th>日期</th><th>商品</th><th>数量</th><th>从</th><th>到</th><th>备注</th><th>操作</th></tr></thead><tbody id="transferTbody"></tbody></table>
+      </div>
+      <p class="muted">库存调整记录</p>
+      <div class="table-wrap">
+        <table><thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>调整数量</th><th>原因</th><th>操作</th></tr></thead><tbody id="adjustTbody"></tbody></table>
+      </div>
+    </section>
+
+    <section class="panel" id="tab-basics">
+      <h2 class="title">基础设置</h2>
+      <div class="card">
         <h3 class="muted" style="margin-top:0">仓库管理</h3>
         <form id="warehouseForm" class="form-grid">
           <div class="form-group"><label>新仓库名称</label><input id="newWarehouse" placeholder="例如：二号库" /></div>
@@ -159,21 +187,6 @@
           <div class="form-group"><button class="btn-primary" type="submit">新增分类</button></div>
         </form>
         <div class="table-wrap"><table><thead><tr><th>分类名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="categoryTbody"></tbody></table></div>
-      </div>
-      <div class="card">
-        <div class="form-group"><label>库存查看仓库</label><select id="invWarehouseFilter"><option value="">全部仓库</option></select></div>
-      </div>
-      <p class="muted">当前库存（按仓库）</p>
-      <div class="table-wrap" style="margin-bottom:12px">
-        <table><thead><tr><th>仓库</th><th>商品</th><th>分类</th><th>库存数量</th><th>库存均价</th><th>库存成本</th></tr></thead><tbody id="inventoryTbody"></tbody></table>
-      </div>
-      <p class="muted">调拨记录</p>
-      <div class="table-wrap" style="margin-bottom:12px">
-        <table><thead><tr><th>日期</th><th>商品</th><th>数量</th><th>从</th><th>到</th><th>备注</th><th>操作</th></tr></thead><tbody id="transferTbody"></tbody></table>
-      </div>
-      <p class="muted">库存调整记录</p>
-      <div class="table-wrap">
-        <table><thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>调整数量</th><th>原因</th><th>操作</th></tr></thead><tbody id="adjustTbody"></tbody></table>
       </div>
     </section>
 
@@ -217,6 +230,23 @@
       <p class="muted">按品类统计</p>
       <div class="table-wrap">
         <table><thead><tr><th>品类</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润贡献占比</th></tr></thead><tbody id="categoryStatsTbody"></tbody></table>
+      </div>
+      <div class="card">
+        <h3 class="muted" style="margin-top:0">畅销榜</h3>
+        <p class="muted" style="margin:0 0 10px;font-size:0.85rem">统计所选期间内的<strong>销售单</strong>数量与销售额。下方「畅销榜」起止日期可单独填写；若留空，则使用上方「开始日期」「结束日期」。仓库、分类仍与上方筛选一致。</p>
+        <form id="bestsellerForm" class="form-grid" onsubmit="return false;">
+          <div class="form-group"><label>畅销榜开始日期</label><input type="date" id="bsStart" /></div>
+          <div class="form-group"><label>畅销榜结束日期</label><input type="date" id="bsEnd" /></div>
+          <div class="form-group"><button type="submit" class="btn-primary">更新畅销榜</button></div>
+        </form>
+        <p class="muted" style="margin:12px 0 6px">按商品（同名合并，按销售额排序）</p>
+        <div class="table-wrap" style="margin-bottom:12px">
+          <table><thead><tr><th>名次</th><th>商品</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerProductTbody"></tbody></table>
+        </div>
+        <p class="muted" style="margin:12px 0 6px">按分类（按销售额排序）</p>
+        <div class="table-wrap">
+          <table><thead><tr><th>名次</th><th>分类</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerCategoryTbody"></tbody></table>
+        </div>
       </div>
     </section>
 
