@@ -6,6 +6,7 @@
   const BACKUP_FILE_VERSION = 2;
   const REMINDER_DAYS = 7;
   const REMINDER_KEY = "hardware_ims_backup_reminder_v1";
+  const CLOUD_SYNC_KEY = "hardware_ims_cloud_sync_v1";
 
   function uid() {
     if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
@@ -91,6 +92,7 @@
       qty: num(x.qty),
       price: num(x.price),
       arReceiptAllocated: num(x.arReceiptAllocated),
+      arManualPaid: num(x.arManualPaid),
     }));
     s.adjustments = s.adjustments.map((a) => ({
       ...a,
@@ -230,15 +232,15 @@
     const receipts = [...state.receipts].sort(
       (a, b) => cmpDate(a.date, b.date) || String(a.id).localeCompare(String(b.id))
     );
-    const creditSales = state.sales
-      .filter((s) => s.paymentType === "credit")
+    const arSales = state.sales
+      .filter((s) => creditRemaining(s) > 0.0001 && String(s.customerName || "").trim())
       .sort((a, b) => cmpDate(a.date, b.date) || String(a.id).localeCompare(String(b.id)));
 
     for (const r of receipts) {
       let left = Math.max(0, num(r.amount));
       const cust = String(r.customerName || "").trim();
       if (!cust) continue;
-      for (const s of creditSales) {
+      for (const s of arSales) {
         if (left <= 0) break;
         if (String(s.customerName || "").trim() !== cust) continue;
         const creditTotal = Math.max(0, num(s.amount) - num(s.paidAtSale));
@@ -260,20 +262,73 @@
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   }
 
+  function loadCloudConfig() {
+    try {
+      const t = localStorage.getItem(CLOUD_SYNC_KEY);
+      return t ? JSON.parse(t) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function saveCloudConfig(cfg) {
+    localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify(cfg));
+  }
+
+  async function cloudPull(cfg) {
+    const url = String(cfg?.url || "").replace(/\/+$/, "");
+    const anonKey = String(cfg?.anonKey || "");
+    const bucket = String(cfg?.bucket || "lingxin-ims");
+    const objectPath = String(cfg?.objectPath || "");
+    if (!url || !anonKey || !objectPath) throw new Error("云同步未配置完整（URL/Key/同步码）");
+
+    const objUrl = `${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectPath}`;
+    const res = await fetch(objUrl, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
+      cache: "no-store",
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error("云端下载失败：" + res.status);
+    const text = await res.text();
+    const parsed = JSON.parse(text);
+    return migrateIfNeeded(parsed?.data || parsed);
+  }
+
+  async function cloudPush(cfg, state) {
+    const url = String(cfg?.url || "").replace(/\/+$/, "");
+    const anonKey = String(cfg?.anonKey || "");
+    const bucket = String(cfg?.bucket || "lingxin-ims");
+    const objectPath = String(cfg?.objectPath || "");
+    if (!url || !anonKey || !objectPath) throw new Error("云同步未配置完整（URL/Key/同步码）");
+    syncAllComputed(state);
+    const payload = JSON.stringify({ savedAt: new Date().toISOString(), data: state });
+    const objUrl = `${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectPath}`;
+    const res = await fetch(objUrl, {
+      method: "PUT",
+      headers: {
+        apikey: anonKey,
+        Authorization: `Bearer ${anonKey}`,
+        "Content-Type": "application/json",
+        "x-upsert": "true",
+      },
+      body: payload,
+    });
+    if (!res.ok) throw new Error("云端上传失败：" + res.status);
+    return true;
+  }
+
   function creditRemaining(s) {
-    if (s.paymentType !== "credit") return 0;
-    const creditTotal = Math.max(0, num(s.amount) - num(s.paidAtSale));
-    return Math.max(0, creditTotal - num(s.arReceiptAllocated));
+    const total = Math.max(0, num(s.amount) - Math.max(0, num(s.paidAtSale)));
+    const applied = Math.max(0, num(s.arReceiptAllocated)) + Math.max(0, num(s.arManualPaid));
+    return Math.max(0, total - applied);
   }
 
   function arCustomerBalances(state) {
     const map = new Map();
     state.sales.forEach((s) => {
-      if (s.paymentType !== "credit") return;
-      const c = String(s.customerName || "").trim();
-      if (!c) return;
       const bal = creditRemaining(s);
       if (bal <= 0) return;
+      const c = String(s.customerName || "").trim() || "（未填写客户）";
       map.set(c, (map.get(c) || 0) + bal);
     });
     return map;
@@ -324,6 +379,79 @@
       o.value = v;
       dl.appendChild(o);
     });
+  }
+
+  function escapeHtml(s) {
+    return String(s ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+  }
+
+  function optionsHtml(items, selectedId) {
+    return items
+      .map((it) => `<option value="${escapeHtml(it.id)}"${it.id === selectedId ? " selected" : ""}>${escapeHtml(it.name)}</option>`)
+      .join("");
+  }
+
+  function openModal(title, bodyHtml, onSave) {
+    const overlay = document.getElementById("modalOverlay");
+    overlay.innerHTML = `
+      <div class="modal" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <div class="modal-title">${escapeHtml(title)}</div>
+          <button type="button" class="btn-link" data-modal-close>关闭</button>
+        </div>
+        <div class="modal-body">${bodyHtml}</div>
+        <div class="modal-footer">
+          <button type="button" class="btn-secondary" data-modal-cancel>取消</button>
+          <button type="button" class="btn-primary" data-modal-save>保存</button>
+        </div>
+      </div>
+    `;
+    overlay.classList.add("show");
+    overlay.setAttribute("aria-hidden", "false");
+
+    function close() {
+      overlay.classList.remove("show");
+      overlay.setAttribute("aria-hidden", "true");
+      overlay.innerHTML = "";
+      document.removeEventListener("keydown", onKey);
+    }
+    function onKey(e) {
+      if (e.key === "Escape") close();
+    }
+    document.addEventListener("keydown", onKey);
+
+    overlay.addEventListener(
+      "click",
+      (e) => {
+        if (e.target === overlay) close();
+      },
+      { once: false }
+    );
+    overlay.querySelectorAll("[data-modal-close],[data-modal-cancel]").forEach((b) =>
+      b.addEventListener("click", close)
+    );
+    overlay.querySelector("[data-modal-save]").addEventListener("click", async () => {
+      try {
+        const ok = await onSave(overlay);
+        if (ok !== false) close();
+      } catch (err) {
+        alert(err && err.message ? err.message : String(err));
+      }
+    });
+  }
+
+  function ledgerAvailableAfterRemovingSale(saleId, warehouseId, product) {
+    // compute available stock if a given sale is temporarily removed (for editing)
+    const saved = state.sales;
+    state.sales = state.sales.filter((x) => x.id !== saleId);
+    const avail = stockAvailable(warehouseId, product);
+    state.sales = saved;
+    return avail;
   }
 
   function maybeBackupReminder() {
@@ -452,6 +580,7 @@
 
   const els = {
     themeBtn: document.getElementById("themeBtn"),
+    cloudSyncBtn: document.getElementById("cloudSyncBtn"),
     backupExportBtn: document.getElementById("backupExportBtn"),
     backupImportBtn: document.getElementById("backupImportBtn"),
     backupFileInput: document.getElementById("backupFileInput"),
@@ -491,6 +620,7 @@
     receiptForm: document.getElementById("receiptForm"),
     arSummaryTbody: document.getElementById("arSummaryTbody"),
     arCreditTbody: document.getElementById("arCreditTbody"),
+    arPaidTbody: document.getElementById("arPaidTbody"),
     receiptTbody: document.getElementById("receiptTbody"),
     aDate: document.getElementById("aDate"),
     aWarehouse: document.getElementById("aWarehouse"),
@@ -544,6 +674,72 @@
     setTheme(!cur);
   });
 
+  if (els.cloudSyncBtn) {
+    els.cloudSyncBtn.addEventListener("click", () => {
+      const cfg = loadCloudConfig() || {};
+      const body = `
+        <form class="form-grid" onsubmit="return false;">
+          <div class="form-group" style="grid-column:span 2"><label>Supabase URL</label><input id="m_url" placeholder="https://xxxx.supabase.co" value="${escapeHtml(cfg.url || "")}"></div>
+          <div class="form-group" style="grid-column:span 2"><label>Supabase anon key</label><input id="m_key" placeholder="ey..." value="${escapeHtml(cfg.anonKey || "")}"></div>
+          <div class="form-group"><label>Bucket(默认)</label><input id="m_bucket" value="${escapeHtml(cfg.bucket || "lingxin-ims")}"></div>
+          <div class="form-group"><label>同步码(建议手机号)</label><input id="m_code" placeholder="例如：13800138000" value="${escapeHtml(cfg.code || "")}"></div>
+          <div class="form-group" style="grid-column:span 2"><label>说明</label><input value="同一个同步码=同一套数据，多设备共用" disabled></div>
+          <div class="form-group"><button type="button" class="btn-secondary" id="m_pull">从云端下载覆盖本机</button></div>
+          <div class="form-group"><button type="button" class="btn-secondary" id="m_push">上传本机到云端</button></div>
+        </form>
+      `;
+      openModal("云同步设置", body, async () => {
+        const url = document.getElementById("m_url").value.trim();
+        const anonKey = document.getElementById("m_key").value.trim();
+        const bucket = document.getElementById("m_bucket").value.trim() || "lingxin-ims";
+        const code = document.getElementById("m_code").value.trim();
+        if (!url || !anonKey || !code) return alert("请填写 URL、anon key、同步码");
+        const objectPath = `sync/${encodeURIComponent(code)}.json`;
+        const next = { url, anonKey, bucket, code, objectPath };
+        saveCloudConfig(next);
+        alert("已保存云同步配置。可用下方按钮上传/下载。");
+        return true;
+      });
+
+      // Bind pull/push buttons once modal is present
+      setTimeout(() => {
+        const pullBtn = document.getElementById("m_pull");
+        const pushBtn = document.getElementById("m_push");
+        if (pullBtn)
+          pullBtn.addEventListener("click", async () => {
+            const current = loadCloudConfig() || {};
+            // use modal input values if present
+            const url = document.getElementById("m_url")?.value?.trim() || current.url;
+            const anonKey = document.getElementById("m_key")?.value?.trim() || current.anonKey;
+            const bucket = document.getElementById("m_bucket")?.value?.trim() || current.bucket || "lingxin-ims";
+            const code = document.getElementById("m_code")?.value?.trim() || current.code;
+            const objectPath = `sync/${encodeURIComponent(code)}.json`;
+            const cfg2 = { url, anonKey, bucket, code, objectPath };
+            saveCloudConfig(cfg2);
+            const pulled = await cloudPull(cfg2);
+            if (!pulled) return alert("云端暂无数据（请先在另一台设备上传一次）");
+            state = pulled;
+            saveState(state);
+            fullRender();
+            alert("已从云端下载并覆盖本机");
+          });
+        if (pushBtn)
+          pushBtn.addEventListener("click", async () => {
+            const current = loadCloudConfig() || {};
+            const url = document.getElementById("m_url")?.value?.trim() || current.url;
+            const anonKey = document.getElementById("m_key")?.value?.trim() || current.anonKey;
+            const bucket = document.getElementById("m_bucket")?.value?.trim() || current.bucket || "lingxin-ims";
+            const code = document.getElementById("m_code")?.value?.trim() || current.code;
+            const objectPath = `sync/${encodeURIComponent(code)}.json`;
+            const cfg2 = { url, anonKey, bucket, code, objectPath };
+            saveCloudConfig(cfg2);
+            await cloudPush(cfg2, state);
+            alert("已上传到云端");
+          });
+      }, 0);
+    });
+  }
+
   els.tabBtns.forEach((btn) => {
     btn.addEventListener("click", () => {
       const tab = btn.getAttribute("data-tab");
@@ -595,8 +791,45 @@
         <td data-label="数量">${num(p.qty).toFixed(2)}</td>
         <td data-label="单价">${money(p.price)}</td>
         <td data-label="小计">${money(sub)}</td>
-        <td data-label="操作"><button type="button" class="btn-danger" data-del-p="${p.id}">删除</button></td>`;
+        <td data-label="操作">
+          <button type="button" class="btn-mini" data-edit-p="${p.id}">编辑</button>
+          <button type="button" class="btn-danger" data-del-p="${p.id}">删除</button>
+        </td>`;
       els.purchaseTbody.appendChild(tr);
+    });
+    els.purchaseTbody.querySelectorAll("[data-edit-p]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-edit-p");
+        const p = state.purchases.find((x) => x.id === id);
+        if (!p) return;
+        const body = `
+          <form class="form-grid" onsubmit="return false;">
+            <div class="form-group"><label>日期</label><input type="date" id="m_date" value="${escapeHtml(p.date)}"></div>
+            <div class="form-group"><label>供应商</label><input type="text" id="m_supplier" value="${escapeHtml(p.supplier || "")}"></div>
+            <div class="form-group"><label>商品</label><input type="text" id="m_product" value="${escapeHtml(p.product || "")}"></div>
+            <div class="form-group"><label>分类</label><select id="m_category">${optionsHtml(state.categories, p.categoryId)}</select></div>
+            <div class="form-group"><label>入库仓库</label><select id="m_warehouse">${optionsHtml(state.warehouses, p.warehouseId)}</select></div>
+            <div class="form-group"><label>数量</label><input type="number" id="m_qty" step="0.01" value="${num(p.qty)}"></div>
+            <div class="form-group"><label>单价</label><input type="number" id="m_price" step="0.01" value="${num(p.price)}"></div>
+          </form>`;
+        openModal("编辑进货", body, () => {
+          const next = {
+            ...p,
+            date: document.getElementById("m_date").value,
+            supplier: document.getElementById("m_supplier").value.trim(),
+            product: document.getElementById("m_product").value.trim(),
+            categoryId: document.getElementById("m_category").value,
+            warehouseId: document.getElementById("m_warehouse").value,
+            qty: num(document.getElementById("m_qty").value),
+            price: num(document.getElementById("m_price").value),
+          };
+          if (!next.product) return alert("请填写商品名称");
+          state.purchases = state.purchases.map((x) => (x.id === id ? next : x));
+          saveState(state);
+          fullRender();
+          return true;
+        });
+      });
     });
     els.purchaseTbody.querySelectorAll("[data-del-p]").forEach((b) => {
       b.addEventListener("click", () => {
@@ -642,11 +875,58 @@
         <td data-label="售价">${money(s.price)}</td>
         <td data-label="成本">${money(s.costAtSale)}</td>
         <td data-label="小计">${money(s.amount)}</td>
-        <td data-label="已收">${money(s.paymentType === "cash" ? s.amount : num(s.paidAtSale))}</td>
-        <td data-label="欠款">${s.paymentType === "credit" ? money(rem) : "—"}</td>
+        <td data-label="已收">${money(Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))))}</td>
+        <td data-label="欠款">${rem > 0.0001 ? money(rem) : "—"}</td>
         <td data-label="买方">${s.buyer || ""}</td>
-        <td data-label="操作"><button type="button" class="btn-danger" data-del-s="${s.id}">删除</button></td>`;
+        <td data-label="操作">
+          <button type="button" class="btn-mini" data-edit-s="${s.id}">编辑</button>
+          <button type="button" class="btn-danger" data-del-s="${s.id}">删除</button>
+        </td>`;
       els.salesTbody.appendChild(tr);
+    });
+    els.salesTbody.querySelectorAll("[data-edit-s]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-edit-s");
+        const s = state.sales.find((x) => x.id === id);
+        if (!s) return;
+        const body = `
+          <form class="form-grid" onsubmit="return false;">
+            <div class="form-group"><label>日期</label><input type="date" id="m_date" value="${escapeHtml(s.date)}"></div>
+            <div class="form-group"><label>商品</label><input type="text" id="m_product" value="${escapeHtml(s.product || "")}"></div>
+            <div class="form-group"><label>分类</label><select id="m_category">${optionsHtml(state.categories, s.categoryId)}</select></div>
+            <div class="form-group"><label>出库仓库</label><select id="m_warehouse">${optionsHtml(state.warehouses, s.warehouseId)}</select></div>
+            <div class="form-group"><label>数量</label><input type="number" id="m_qty" step="0.01" value="${num(s.qty)}"></div>
+            <div class="form-group"><label>售价</label><input type="number" id="m_price" step="0.01" value="${num(s.price)}"></div>
+            <div class="form-group"><label>客户</label><input type="text" id="m_customer" value="${escapeHtml(s.customerName || "")}"></div>
+            <div class="form-group"><label>当场已收</label><input type="number" id="m_paid" step="0.01" value="${num(s.paidAtSale)}"></div>
+            <div class="form-group" style="grid-column:span 2"><label>买方</label><input type="text" id="m_buyer" value="${escapeHtml(s.buyer || "")}"></div>
+          </form>`;
+        openModal("编辑销售", body, () => {
+          const next = {
+            ...s,
+            date: document.getElementById("m_date").value,
+            product: document.getElementById("m_product").value.trim(),
+            categoryId: document.getElementById("m_category").value,
+            warehouseId: document.getElementById("m_warehouse").value,
+            qty: num(document.getElementById("m_qty").value),
+            price: num(document.getElementById("m_price").value),
+            customerName: document.getElementById("m_customer").value.trim(),
+            paidAtSale: Math.max(0, num(document.getElementById("m_paid").value)),
+            buyer: document.getElementById("m_buyer").value.trim(),
+          };
+          if (!next.product) return alert("请填写商品名称");
+          next.amount = +(num(next.qty) * num(next.price)).toFixed(2);
+          next.paidAtSale = Math.min(next.amount, next.paidAtSale);
+
+          const avail = ledgerAvailableAfterRemovingSale(id, next.warehouseId, next.product);
+          if (next.qty > avail + 1e-6) return alert("库存不足（当前仓可用 " + avail.toFixed(2) + "）");
+
+          state.sales = state.sales.map((x) => (x.id === id ? next : x));
+          saveState(state);
+          fullRender();
+          return true;
+        });
+      });
     });
     els.salesTbody.querySelectorAll("[data-del-s]").forEach((b) => {
       b.addEventListener("click", () => {
@@ -677,26 +957,55 @@
     }
 
     els.arCreditTbody.innerHTML = "";
-    const creditRows = state.sales
-      .filter((s) => s.paymentType === "credit" && creditRemaining(s) > 0.001)
+    const unpaidRows = state.sales
+      .filter((s) => creditRemaining(s) > 0.001)
       .sort((a, b) => cmpDate(a.date, b.date));
-    creditRows.forEach((s) => {
+    unpaidRows.forEach((s) => {
       const tr = document.createElement("tr");
       const rem = creditRemaining(s);
       tr.innerHTML = `
         <td data-label="日期">${s.date}</td>
-        <td data-label="客户">${s.customerName || ""}</td>
+        <td data-label="客户">${String(s.customerName || "").trim() || "（未填写客户）"}</td>
         <td data-label="商品">${s.product || ""}</td>
         <td data-label="小计">${money(s.amount)}</td>
         <td data-label="当场已收">${money(s.paidAtSale)}</td>
         <td data-label="收款核销">${money(s.arReceiptAllocated)}</td>
-        <td data-label="剩余欠款">${money(rem)}</td>`;
+        <td data-label="剩余欠款">${money(rem)}</td>
+        <td data-label="已收款"><input type="checkbox" data-ar-paid="${s.id}" /></td>`;
       els.arCreditTbody.appendChild(tr);
     });
     if (!els.arCreditTbody.children.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="7" class="muted">暂无未结清赊销</td>`;
+      tr.innerHTML = `<td colspan="8" class="muted">暂无未结清欠款</td>`;
       els.arCreditTbody.appendChild(tr);
+    }
+
+    const paidTbody = document.getElementById("arPaidTbody");
+    if (paidTbody) {
+      paidTbody.innerHTML = "";
+      const paidRows = state.sales
+        .filter((s) => creditRemaining(s) <= 0.001 && (num(s.arReceiptAllocated) > 0 || num(s.arManualPaid) > 0 || num(s.paidAtSale) < num(s.amount)))
+        .sort((a, b) => -cmpDate(a.date, b.date));
+      paidRows.forEach((s) => {
+        const tr = document.createElement("tr");
+        const manual = Math.max(0, num(s.arManualPaid));
+        const paidTotal = Math.min(num(s.amount), Math.max(0, num(s.paidAtSale)) + Math.max(0, num(s.arReceiptAllocated)) + manual);
+        tr.innerHTML = `
+          <td data-label="日期">${s.date}</td>
+          <td data-label="客户">${String(s.customerName || "").trim() || "（未填写客户）"}</td>
+          <td data-label="商品">${s.product || ""}</td>
+          <td data-label="小计">${money(s.amount)}</td>
+          <td data-label="当场已收">${money(s.paidAtSale)}</td>
+          <td data-label="收款核销">${money(s.arReceiptAllocated)}</td>
+          <td data-label="手动结清">${money(manual)}</td>
+          <td data-label="已收合计">${money(paidTotal)}</td>`;
+        paidTbody.appendChild(tr);
+      });
+      if (!paidTbody.children.length) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="8" class="muted">暂无已结清记录</td>`;
+        paidTbody.appendChild(tr);
+      }
     }
 
     els.receiptTbody.innerHTML = "";
@@ -719,6 +1028,21 @@
         state.receipts = state.receipts.filter((x) => x.id !== id);
         saveState(state);
         fullRender();
+      });
+    });
+
+    // Bind manual paid checkbox
+    els.arCreditTbody.querySelectorAll("[data-ar-paid]").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        const id = cb.getAttribute("data-ar-paid");
+        const s = state.sales.find((x) => x.id === id);
+        if (!s) return;
+        const rem = Math.max(0, creditRemaining(s));
+        if (cb.checked && rem > 0) {
+          s.arManualPaid = Math.max(0, num(s.arManualPaid)) + rem;
+          saveState(state);
+          fullRender();
+        }
       });
     });
   }

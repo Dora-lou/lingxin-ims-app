@@ -16,6 +16,7 @@
     <header class="topbar">
       <div><h1>玲鑫建材进销存管理系统</h1><p>多仓库存 / 赊销应收 / 分类可编辑</p></div>
       <div class="topbar-actions">
+        <button id="cloudSyncBtn" class="theme-toggle">云同步</button>
         <button id="backupExportBtn" class="theme-toggle">导出备份(JSON)</button>
         <button id="backupImportBtn" class="theme-toggle">导入备份(JSON)</button>
         <button id="themeBtn" class="theme-toggle">切换深色模式</button>
@@ -107,7 +108,11 @@
       </div>
       <div class="card">
         <h3 class="muted" style="margin-top:0">赊销明细（未结清）</h3>
-        <div class="table-wrap"><table><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>剩余欠款</th></tr></thead><tbody id="arCreditTbody"></tbody></table></div>
+        <div class="table-wrap"><table><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>剩余欠款</th><th>已收款</th></tr></thead><tbody id="arCreditTbody"></tbody></table></div>
+      </div>
+      <div class="card">
+        <h3 class="muted" style="margin-top:0">已收款（已结清）</h3>
+        <div class="table-wrap"><table><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>手动结清</th><th>已收合计</th></tr></thead><tbody id="arPaidTbody"></tbody></table></div>
       </div>
       <div class="card">
         <h3 class="muted" style="margin-top:0">收款记录</h3>
@@ -219,6 +224,7 @@
     <datalist id="customerList"></datalist>
     <input id="backupFileInput" type="file" accept=".json,application/json" style="display:none" />
   </div>
+  <div id="modalOverlay" class="modal-overlay" aria-hidden="true"></div>
   <script src="lingxin-ims-app.js"></script>
   <script>
   if ('serviceWorker' in navigator) {
