@@ -398,6 +398,10 @@
 
   function openModal(title, bodyHtml, onSave) {
     const overlay = document.getElementById("modalOverlay");
+    if (!overlay) {
+      alert("页面缺少弹窗容器 modalOverlay。请把最新 index.html 上传到网站后刷新。");
+      return;
+    }
     overlay.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true">
         <div class="modal-header">
@@ -413,11 +417,26 @@
     `;
     overlay.classList.add("show");
     overlay.setAttribute("aria-hidden", "false");
+    // 内联样式：避免线上 CSS 仍是旧版/被缓存时弹窗 display 仍为 none，看起来像“点了没反应”
+    overlay.style.display = "flex";
+    overlay.style.alignItems = "flex-end";
+    overlay.style.justifyContent = "center";
+    overlay.style.position = "fixed";
+    overlay.style.inset = "0";
+    overlay.style.zIndex = "9999";
+    overlay.style.background = "rgba(15, 23, 42, 0.55)";
+    overlay.style.padding = "14px";
+
+    const modalEl = overlay.querySelector(".modal");
+    if (modalEl) {
+      modalEl.addEventListener("click", (e) => e.stopPropagation());
+    }
 
     function close() {
       overlay.classList.remove("show");
       overlay.setAttribute("aria-hidden", "true");
       overlay.innerHTML = "";
+      overlay.style.cssText = "";
       document.removeEventListener("keydown", onKey);
     }
     function onKey(e) {
@@ -676,6 +695,7 @@
 
   if (els.cloudSyncBtn) {
     els.cloudSyncBtn.addEventListener("click", () => {
+      try {
       const cfg = loadCloudConfig() || {};
       const body = `
         <form class="form-grid" onsubmit="return false;">
@@ -737,6 +757,9 @@
             alert("已上传到云端");
           });
       }, 0);
+      } catch (err) {
+        alert("打开云同步失败：" + (err && err.message ? err.message : String(err)));
+      }
     });
   }
 

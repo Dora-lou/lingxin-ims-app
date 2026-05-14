@@ -97,6 +97,61 @@ tbody tr:hover { background: rgba(37, 99, 235, 0.04); }
 }
 .legend { display: flex; gap: 16px; margin-top: 8px; font-size: 0.85rem; color: var(--muted); flex-wrap: wrap; }
 .legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+
+/* Modal (edit dialogs) */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: none;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 14px;
+  z-index: 9999;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  width: min(720px, 100%);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-title { font-weight: 700; }
+.modal-body { padding: 14px; }
+.modal-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+}
+.btn-link {
+  background: transparent;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 6px 10px;
+}
+.btn-link:hover { color: var(--text); }
+.btn-mini {
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+  padding: 6px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.btn-mini:hover { border-color: var(--primary); }
 @media (max-width: 720px) {
   .table-wrap table thead { display: none; }
   .table-wrap table, .table-wrap tbody, .table-wrap tr, .table-wrap td { display: block; width: 100%; }
