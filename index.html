@@ -111,7 +111,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="lingxin-ims.css?v=20260516" />
+  <link rel="stylesheet" href="lingxin-ims.css?v=20260519" />
 </head>
 <body class="min-h-screen bg-slate-50 antialiased transition-colors duration-300 dark:bg-slate-950">
   <div class="mx-auto max-w-6xl px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pb-16 lg:pt-10">
@@ -133,8 +133,8 @@
       <button type="button" class="tab-btn lx-tab" data-tab="sales">销售管理</button>
       <button type="button" class="tab-btn lx-tab" data-tab="receivables">应收账款</button>
       <button type="button" class="tab-btn lx-tab" data-tab="inventory">库存管理</button>
-      <button type="button" class="tab-btn lx-tab" data-tab="basics">基础设置</button>
       <button type="button" class="tab-btn lx-tab" data-tab="analytics">统计分析</button>
+      <button type="button" class="tab-btn lx-tab" data-tab="basics">基础设置</button>
     </nav>
 
     <section id="tab-purchase" class="panel block space-y-6">
@@ -307,38 +307,6 @@
       </div>
     </section>
 
-    <section id="tab-basics" class="panel hidden space-y-6">
-      <h2 class="lx-page-title">基础设置</h2>
-      <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">仓库管理</h3>
-        </div>
-        <div class="p-6">
-          <form id="warehouseForm" class="lx-form-grid">
-            <div class="min-w-0"><label class="lx-label" for="newWarehouse">新仓库名称</label><input id="newWarehouse" class="lx-input" placeholder="例如：二号库" /></div>
-            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增仓库</button></div>
-          </form>
-        </div>
-        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>仓库名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="warehouseTbody"></tbody></table>
-        </div>
-      </div>
-      <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">分类管理</h3>
-        </div>
-        <div class="p-6">
-          <form id="categoryForm" class="lx-form-grid">
-            <div class="min-w-0"><label class="lx-label" for="newCategory">新分类名称</label><input id="newCategory" class="lx-input" placeholder="例如：管材类" /></div>
-            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增分类</button></div>
-          </form>
-        </div>
-        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>分类名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="categoryTbody"></tbody></table>
-        </div>
-      </div>
-    </section>
-
     <section id="tab-analytics" class="panel hidden space-y-6">
       <h2 class="lx-page-title">统计分析</h2>
       <div class="lx-card">
@@ -363,7 +331,9 @@
       </div>
       <p class="lx-muted mt-2">每日趋势图（收入 / 支出 / 利润）</p>
       <div class="lx-chart-card">
-        <canvas id="trendChart" height="280"></canvas>
+        <div class="lx-trend-chart-wrap">
+          <canvas id="trendChart"></canvas>
+        </div>
         <div class="mt-4 flex flex-wrap gap-6 text-sm text-slate-500 dark:text-slate-400">
           <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-blue-600"></i>收入</span>
           <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-amber-600"></i>支出</span>
@@ -407,12 +377,50 @@
       </div>
     </section>
 
+    <section id="tab-basics" class="panel hidden space-y-6">
+      <h2 class="lx-page-title">基础设置</h2>
+      <div class="lx-card space-y-3">
+        <h3 class="lx-section-title !mb-0">数据导出</h3>
+        <p class="lx-muted text-[13px] leading-relaxed">一键导出当前系统中的仓库、分类、进货、销售、收款、调拨、库存调整等全部业务数据，生成多工作表 Excel（.xlsx）。需能加载 SheetJS 脚本（联网首次打开页面）。</p>
+        <button type="button" id="exportAllExcelBtn" class="lx-btn-primary w-full sm:w-auto">一键下载全部数据（Excel）</button>
+      </div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">仓库管理</h3>
+        </div>
+        <div class="p-6">
+          <form id="warehouseForm" class="lx-form-grid">
+            <div class="min-w-0"><label class="lx-label" for="newWarehouse">新仓库名称</label><input id="newWarehouse" class="lx-input" placeholder="例如：二号库" /></div>
+            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增仓库</button></div>
+          </form>
+        </div>
+        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
+          <table class="lx-table"><thead><tr><th>仓库名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="warehouseTbody"></tbody></table>
+        </div>
+      </div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">分类管理</h3>
+        </div>
+        <div class="p-6">
+          <form id="categoryForm" class="lx-form-grid">
+            <div class="min-w-0"><label class="lx-label" for="newCategory">新分类名称</label><input id="newCategory" class="lx-input" placeholder="例如：管材类" /></div>
+            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增分类</button></div>
+          </form>
+        </div>
+        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
+          <table class="lx-table"><thead><tr><th>分类名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="categoryTbody"></tbody></table>
+        </div>
+      </div>
+    </section>
+
     <datalist id="productList"></datalist>
     <datalist id="customerList"></datalist>
     <input id="backupFileInput" type="file" accept=".json,application/json" class="hidden" />
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
-  <script src="lingxin-ims-app.js?v=20260516"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="lingxin-ims-app.js?v=20260519"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {

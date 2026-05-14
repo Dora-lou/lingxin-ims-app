@@ -300,7 +300,10 @@
       cache: "no-store",
     });
     if (res.status === 404) return null;
-    if (!res.ok) throw new Error("云端下载失败：" + res.status);
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => "")).slice(0, 400);
+      throw new Error("云端下载失败：" + res.status + (detail ? "\n" + detail : ""));
+    }
     const text = await res.text();
     const parsed = JSON.parse(text);
     return migrateIfNeeded(parsed?.data || parsed);
@@ -325,7 +328,10 @@
       },
       body: payload,
     });
-    if (!res.ok) throw new Error("云端上传失败：" + res.status);
+    if (!res.ok) {
+      const detail = (await res.text().catch(() => "")).slice(0, 400);
+      throw new Error("云端上传失败：" + res.status + (detail ? "\n" + detail : ""));
+    }
     return true;
   }
 
@@ -415,13 +421,13 @@
       return;
     }
     overlay.innerHTML = `
-      <div class="lx-modal-shell w-full max-w-lg rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900" role="dialog" aria-modal="true">
-        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+      <div class="lx-modal-shell flex max-h-[90vh] w-full max-w-lg flex-col rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900" role="dialog" aria-modal="true">
+        <div class="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
           <div class="text-lg font-bold text-slate-900 dark:text-white">${escapeHtml(title)}</div>
           <button type="button" class="rounded-lg px-3 py-1.5 text-sm text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200" data-modal-close>关闭</button>
         </div>
-        <div class="max-h-[min(70vh,520px)] overflow-y-auto px-5 py-4">${bodyHtml}</div>
-        <div class="flex justify-end gap-3 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+        <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">${bodyHtml}</div>
+        <div class="flex shrink-0 justify-end gap-3 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
           <button type="button" class="lx-btn-outline px-4" data-modal-cancel>取消</button>
           <button type="button" class="lx-btn-primary min-w-[5rem]" data-modal-save>保存</button>
         </div>
@@ -526,11 +532,137 @@
     return s;
   }
 
+  /** 多工作表 Excel：依赖页面引入的 SheetJS（window.XLSX） */
+  function exportAllBusinessDataExcel(state) {
+    const XLSX = typeof window !== "undefined" ? window.XLSX : undefined;
+    if (!XLSX || !XLSX.utils || !XLSX.writeFile) {
+      alert("Excel 组件未加载，请确认网络正常后刷新页面再试。");
+      return;
+    }
+    syncAllComputed(state);
+    const wb = XLSX.utils.book_new();
+
+    function appendSheet(sheetName, rows) {
+      const name = String(sheetName).slice(0, 31);
+      let ws;
+      if (!rows || !rows.length) ws = XLSX.utils.aoa_to_sheet([["（暂无数据）"]]);
+      else ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    }
+
+    appendSheet(
+      "仓库",
+      state.warehouses.map((w) => ({ 记录ID: w.id, 名称: w.name }))
+    );
+    appendSheet(
+      "分类",
+      state.categories.map((c) => ({ 记录ID: c.id, 名称: c.name }))
+    );
+    appendSheet(
+      "进货",
+      [...state.purchases]
+        .sort((a, b) => cmpDate(a.date, b.date))
+        .map((p) => ({
+          日期: p.date,
+          仓库: whName(state, p.warehouseId),
+          供应商: p.supplier || "",
+          商品: p.product || "",
+          分类: catName(state, p.categoryId),
+          数量: num(p.qty),
+          单价: num(p.price),
+          小计: +(num(p.qty) * num(p.price)).toFixed(2),
+          记录ID: p.id,
+        }))
+    );
+    appendSheet(
+      "销售",
+      [...state.sales]
+        .sort((a, b) => cmpDate(a.date, b.date))
+        .map((s) => {
+          const rem = creditRemaining(s);
+          const pay = s.paymentType === "credit" ? "赊账" : "现款";
+          return {
+            日期: s.date,
+            仓库: whName(state, s.warehouseId),
+            商品: s.product || "",
+            分类: catName(state, s.categoryId),
+            付款方式: pay,
+            客户: s.customerName || "",
+            数量: num(s.qty),
+            售价: num(s.price),
+            销售成本: num(s.costAtSale),
+            小计: num(s.amount),
+            当场已收: Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))),
+            赊欠余额: rem > 0.0001 ? +rem.toFixed(2) : 0,
+            收款核销: num(s.arReceiptAllocated),
+            手动结清: num(s.arManualPaid),
+            买方: s.buyer || "",
+            记录ID: s.id,
+          };
+        })
+    );
+    appendSheet(
+      "收款",
+      [...state.receipts]
+        .sort((a, b) => cmpDate(a.date, b.date))
+        .map((r) => ({
+          日期: r.date,
+          客户: r.customerName || "",
+          金额: num(r.amount),
+          备注: r.note || "",
+          记录ID: r.id,
+        }))
+    );
+    appendSheet(
+      "调拨",
+      [...state.transfers]
+        .sort((a, b) => cmpDate(a.date, b.date))
+        .map((t) => ({
+          日期: t.date,
+          商品: t.product || "",
+          数量: num(t.qty),
+          从仓库: whName(state, t.fromWarehouseId),
+          到仓库: whName(state, t.toWarehouseId),
+          备注: t.note || "",
+          记录ID: t.id,
+        }))
+    );
+    appendSheet(
+      "库存调整",
+      [...state.adjustments]
+        .sort((a, b) => cmpDate(a.date, b.date))
+        .map((a) => ({
+          日期: a.date,
+          仓库: whName(state, a.warehouseId),
+          商品: a.product || "",
+          数量: num(a.qty),
+          原因: a.reason || "",
+          记录ID: a.id,
+        }))
+    );
+    appendSheet("系统设置", [
+      {
+        导出时间: new Date().toISOString(),
+        备份提醒开启: state.settings && state.settings.backupReminderEnabled ? "是" : "否",
+        上次备份提示: (state.settings && state.settings.lastBackupPromptAt) || "",
+      },
+    ]);
+
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    XLSX.writeFile(wb, "玲鑫进销存_全部数据_" + stamp + ".xlsx");
+  }
+
   /** -------- Chart (minimal canvas) -------- */
   function drawTrendChart(canvas, labels, revenue, expense, profit) {
     const ctx = canvas.getContext("2d");
-    const w = canvas.width = canvas.clientWidth * (window.devicePixelRatio || 1);
-    const h = canvas.height = (canvas.clientHeight || 280) * (window.devicePixelRatio || 1);
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    let cssW = rect.width || canvas.clientWidth;
+    let cssH = rect.height || canvas.clientHeight;
+    if (!cssW || cssW < 40) cssW = Math.min(560, Math.max(280, window.innerWidth - 40));
+    if (!cssH || cssH < 40) cssH = 150;
+    const w = (canvas.width = Math.floor(cssW * dpr));
+    const h = (canvas.height = Math.floor(cssH * dpr));
     ctx.clearRect(0, 0, w, h);
     const pad = 36 * (window.devicePixelRatio || 1);
     const n = Math.max(1, labels.length);
@@ -613,6 +745,7 @@
     themeBtn: document.getElementById("themeBtn"),
     backupExportBtn: document.getElementById("backupExportBtn"),
     backupImportBtn: document.getElementById("backupImportBtn"),
+    exportAllExcelBtn: document.getElementById("exportAllExcelBtn"),
     backupFileInput: document.getElementById("backupFileInput"),
     productList: document.getElementById("productList"),
     customerList: document.getElementById("customerList"),
@@ -740,15 +873,15 @@
           const objectPath = `sync/${encodeURIComponent(code)}.json`;
           const next = { url, anonKey, bucket, code, objectPath };
           saveCloudConfig(next);
-          alert("已保存云同步配置。可用下方按钮上传/下载。");
-          return true;
+          alert("已保存云同步配置。请在本弹窗内点击「上传本机到云端」或「从云端下载覆盖本机」。（仅点保存不会上传数据）");
+          return false;
         });
 
-        setTimeout(() => {
-          const pullBtn = document.getElementById("m_pull");
-          const pushBtn = document.getElementById("m_push");
-          if (pullBtn)
-            pullBtn.addEventListener("click", async () => {
+        const pullBtn = document.getElementById("m_pull");
+        const pushBtn = document.getElementById("m_push");
+        if (pullBtn)
+          pullBtn.addEventListener("click", async () => {
+            try {
               const current = loadCloudConfig() || {};
               const url = document.getElementById("m_url")?.value?.trim() || current.url;
               const anonKey = document.getElementById("m_key")?.value?.trim() || current.anonKey;
@@ -758,14 +891,18 @@
               const cfg2 = { url, anonKey, bucket, code, objectPath };
               saveCloudConfig(cfg2);
               const pulled = await cloudPull(cfg2);
-              if (!pulled) return alert("云端暂无数据（请先在另一台设备上传一次）");
+              if (!pulled) return alert("云端暂无数据（请先在另一台设备点「上传本机到云端」）");
               state = pulled;
               saveState(state);
               fullRender();
               alert("已从云端下载并覆盖本机");
-            });
-          if (pushBtn)
-            pushBtn.addEventListener("click", async () => {
+            } catch (err) {
+              alert(err && err.message ? err.message : String(err));
+            }
+          });
+        if (pushBtn)
+          pushBtn.addEventListener("click", async () => {
+            try {
               const current = loadCloudConfig() || {};
               const url = document.getElementById("m_url")?.value?.trim() || current.url;
               const anonKey = document.getElementById("m_key")?.value?.trim() || current.anonKey;
@@ -776,8 +913,10 @@
               saveCloudConfig(cfg2);
               await cloudPush(cfg2, state);
               alert("已上传到云端");
-            });
-        }, 0);
+            } catch (err) {
+              alert(err && err.message ? err.message : String(err));
+            }
+          });
       } catch (err) {
         alert("打开云同步失败：" + (err && err.message ? err.message : String(err)));
       }
@@ -1708,6 +1847,15 @@
 
   els.backupExportBtn.addEventListener("click", () => exportBackup(state));
   els.backupImportBtn.addEventListener("click", () => els.backupFileInput.click());
+  if (els.exportAllExcelBtn) {
+    els.exportAllExcelBtn.addEventListener("click", () => {
+      try {
+        exportAllBusinessDataExcel(state);
+      } catch (err) {
+        alert("导出失败：" + (err && err.message ? err.message : String(err)));
+      }
+    });
+  }
   els.backupFileInput.addEventListener("change", () => {
     const f = els.backupFileInput.files[0];
     if (!f) return;
