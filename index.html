@@ -9,261 +9,418 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
-  <link rel="stylesheet" href="lingxin-ims.css?v=20260514" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: ["selector", '[data-theme="dark"]'],
+      theme: {
+        extend: {
+          boxShadow: {
+            soft: "0 4px 24px -4px rgba(15,23,42,0.08), 0 2px 8px -2px rgba(15,23,42,0.05)",
+            lift: "0 8px 30px -8px rgba(15,23,42,0.12), 0 4px 12px -4px rgba(15,23,42,0.08)",
+          },
+        },
+      },
+    };
+  </script>
+  <style type="text/tailwindcss">
+    @layer components {
+      .lx-card {
+        @apply rounded-2xl border border-slate-200/90 bg-white p-6 shadow-soft transition-shadow duration-300 hover:shadow-lift dark:border-slate-700/90 dark:bg-slate-900/95 dark:shadow-none dark:hover:shadow-[0_8px_32px_-8px_rgba(0,0,0,0.45)];
+      }
+      .lx-page-title {
+        @apply text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl dark:text-white;
+      }
+      .lx-section-title {
+        @apply mb-4 text-sm font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400;
+      }
+      .lx-muted {
+        @apply text-sm text-slate-500 dark:text-slate-400;
+      }
+      .lx-form-grid {
+        @apply grid grid-cols-1 items-end gap-x-5 gap-y-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4;
+      }
+      .lx-span-2 {
+        @apply sm:col-span-2;
+      }
+      .lx-label {
+        @apply mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400;
+      }
+      .lx-input,
+      .lx-form-grid select {
+        @apply h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400/80 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25 dark:border-slate-600 dark:bg-slate-950/40 dark:text-slate-100 dark:placeholder:text-slate-500;
+      }
+      .lx-btn-primary {
+        @apply inline-flex h-11 shrink-0 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition duration-200 hover:bg-blue-700 hover:shadow active:scale-[0.98] dark:bg-blue-500 dark:hover:bg-blue-600;
+      }
+      .lx-btn-outline {
+        @apply inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm transition duration-200 hover:border-blue-400 hover:bg-blue-50/80 hover:text-blue-800 active:scale-[0.98] dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-blue-500 dark:hover:bg-slate-800 dark:hover:text-blue-300;
+      }
+      .lx-btn-secondary {
+        @apply inline-flex h-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-4 text-sm font-medium text-slate-700 transition duration-200 hover:border-slate-300 hover:bg-white active:scale-[0.98] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700;
+      }
+      .lx-segmented {
+        @apply mb-8 flex flex-wrap gap-1 rounded-2xl bg-slate-100/95 p-1.5 ring-1 ring-slate-200/70 dark:bg-slate-800/90 dark:ring-slate-700/80;
+      }
+      .lx-tab.tab-btn {
+        @apply min-w-[5.5rem] flex-1 rounded-xl px-3 py-2.5 text-center text-sm font-medium text-slate-600 transition-all duration-200 ease-out dark:text-slate-300;
+        @apply hover:bg-white/70 hover:text-slate-900 dark:hover:bg-slate-700/60 dark:hover:text-white;
+      }
+      .lx-tab.tab-btn.active {
+        @apply bg-white text-blue-700 shadow-md shadow-slate-300/40 ring-1 ring-slate-200/90 dark:bg-slate-900 dark:text-blue-400 dark:shadow-black/40 dark:ring-slate-600;
+      }
+      .lx-table-wrap {
+        @apply overflow-x-auto rounded-2xl border border-slate-200/90 bg-white shadow-sm dark:border-slate-700/90 dark:bg-slate-900/80;
+      }
+      .lx-table {
+        @apply w-full border-collapse text-sm;
+      }
+      .lx-table thead th {
+        @apply whitespace-nowrap bg-slate-100/95 px-4 py-3.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 first:pl-5 last:pr-5 dark:bg-slate-800/95 dark:text-slate-300;
+      }
+      .lx-table tbody td {
+        @apply border-b border-slate-100 px-4 py-3.5 align-middle text-slate-700 first:pl-5 last:pr-5 dark:border-slate-800/80 dark:text-slate-200;
+      }
+      .lx-table tbody tr {
+        @apply transition-colors duration-150 hover:bg-blue-50/45 dark:hover:bg-slate-800/55;
+      }
+      .lx-money {
+        @apply font-semibold tabular-nums text-emerald-700 dark:text-emerald-400;
+      }
+      .lx-icon-btn {
+        @apply inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-blue-300 hover:bg-blue-50 hover:text-blue-700 dark:border-slate-600 dark:hover:bg-slate-800 dark:hover:text-blue-400;
+      }
+      .lx-icon-btn-danger {
+        @apply inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-slate-600 dark:hover:bg-red-950/40 dark:hover:text-red-400;
+      }
+      .lx-stat-card {
+        @apply rounded-2xl border border-slate-200/90 bg-white p-5 shadow-soft dark:border-slate-700 dark:bg-slate-900/90;
+      }
+      .lx-chart-card {
+        @apply rounded-2xl border border-slate-200/90 bg-white p-5 shadow-soft dark:border-slate-700 dark:bg-slate-900/90;
+      }
+      .lx-modal-shell .form-grid {
+        @apply grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-5;
+      }
+      .lx-modal-shell .form-group label {
+        @apply mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400;
+      }
+      .lx-modal-shell .form-group input,
+      .lx-modal-shell .form-group select {
+        @apply h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 shadow-sm transition placeholder:text-slate-400/80 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/25 dark:border-slate-600 dark:bg-slate-950/40 dark:text-slate-100;
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="lingxin-ims.css?v=20260516" />
 </head>
-<body>
-  <div class="container">
-    <header class="topbar">
-      <div><h1>玲鑫建材进销存管理系统</h1><p>多仓库存 / 赊销应收 / 分类可编辑</p></div>
-      <div class="topbar-actions">
-        <button id="cloudSyncBtn" class="theme-toggle">云同步</button>
-        <button id="backupExportBtn" class="theme-toggle">导出备份(JSON)</button>
-        <button id="backupImportBtn" class="theme-toggle">导入备份(JSON)</button>
-        <button id="themeBtn" class="theme-toggle">切换深色模式</button>
+<body class="min-h-screen bg-slate-50 antialiased transition-colors duration-300 dark:bg-slate-950">
+  <div class="mx-auto max-w-6xl px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pb-16 lg:pt-10">
+    <header class="lx-card mb-8 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+      <div class="min-w-0 space-y-1">
+        <h1 class="lx-page-title">玲鑫建材进销存管理系统</h1>
+        <p class="text-base text-slate-500 dark:text-slate-400">多仓库存 / 赊销应收 / 分类可编辑</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2 md:justify-end">
+        <button id="cloudSyncBtn" type="button" class="lx-btn-outline">云同步</button>
+        <button id="backupExportBtn" type="button" class="lx-btn-outline">导出备份(JSON)</button>
+        <button id="backupImportBtn" type="button" class="lx-btn-outline">导入备份(JSON)</button>
+        <button id="themeBtn" type="button" class="lx-btn-outline">切换深色模式</button>
       </div>
     </header>
 
-    <div class="tabs">
-      <button class="tab-btn active" data-tab="purchase">进货管理</button>
-      <button class="tab-btn" data-tab="sales">销售管理</button>
-      <button class="tab-btn" data-tab="receivables">应收账款</button>
-      <button class="tab-btn" data-tab="inventory">库存管理</button>
-      <button class="tab-btn" data-tab="basics">基础设置</button>
-      <button class="tab-btn" data-tab="analytics">统计分析</button>
-    </div>
+    <nav class="lx-segmented" aria-label="主导航">
+      <button type="button" class="tab-btn lx-tab active" data-tab="purchase">进货管理</button>
+      <button type="button" class="tab-btn lx-tab" data-tab="sales">销售管理</button>
+      <button type="button" class="tab-btn lx-tab" data-tab="receivables">应收账款</button>
+      <button type="button" class="tab-btn lx-tab" data-tab="inventory">库存管理</button>
+      <button type="button" class="tab-btn lx-tab" data-tab="basics">基础设置</button>
+      <button type="button" class="tab-btn lx-tab" data-tab="analytics">统计分析</button>
+    </nav>
 
-    <section class="panel active" id="tab-purchase">
-      <h2 class="title">进货管理</h2>
-      <div class="card">
-        <form id="purchaseForm" class="form-grid">
-          <div class="form-group"><label>日期</label><input type="date" id="pDate" required /></div>
-          <div class="form-group"><label>商品名称</label><input type="text" id="pProduct" list="productList" required /></div>
-          <div class="form-group"><label>数量</label><input type="number" id="pQty" min="0.01" step="0.01" required /></div>
-          <div class="form-group"><label>单价</label><input type="number" id="pPrice" min="0" step="0.01" required /></div>
-          <div class="form-group"><label>分类</label><select id="pCategory"></select></div>
-          <div class="form-group"><label>供应商</label><input type="text" id="pSupplier" required /></div>
-          <div class="form-group"><label>入库仓库</label><select id="pWarehouse"></select></div>
-          <div class="form-group"><button class="btn-primary" type="submit">新增进货</button></div>
+    <section id="tab-purchase" class="panel block space-y-6">
+      <h2 class="lx-page-title">进货管理</h2>
+      <div class="lx-card">
+        <form id="purchaseForm" class="lx-form-grid">
+          <div class="min-w-0"><label class="lx-label" for="pDate">日期</label><input type="date" id="pDate" class="lx-input" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="pProduct">商品名称</label><input type="text" id="pProduct" class="lx-input" list="productList" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="pQty">数量</label><input type="number" id="pQty" class="lx-input" min="0.01" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="pPrice">单价</label><input type="number" id="pPrice" class="lx-input" min="0" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="pCategory">分类</label><select id="pCategory"></select></div>
+          <div class="min-w-0"><label class="lx-label" for="pSupplier">供应商</label><input type="text" id="pSupplier" class="lx-input" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="pWarehouse">入库仓库</label><select id="pWarehouse"></select></div>
+          <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增进货</button></div>
         </form>
       </div>
-      <div class="card">
-        <form class="form-grid" onsubmit="return false;">
-          <div class="form-group"><label>搜索商品</label><input id="purchaseSearch" placeholder="关键字" /></div>
-          <div class="form-group"><label>分类筛选</label><select id="purchaseCategoryFilter"><option value="">全部分类</option></select></div>
+      <div class="lx-card">
+        <form class="lx-form-grid" onsubmit="return false;">
+          <div class="min-w-0"><label class="lx-label" for="purchaseSearch">搜索商品</label><input id="purchaseSearch" class="lx-input" placeholder="关键字" /></div>
+          <div class="min-w-0"><label class="lx-label" for="purchaseCategoryFilter">分类筛选</label><select id="purchaseCategoryFilter"><option value="">全部分类</option></select></div>
         </form>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>日期</th><th>仓库</th><th>供应商</th><th>商品</th><th>分类</th><th>数量</th><th>单价</th><th>小计</th><th>操作</th></tr></thead>
-          <tbody id="purchaseTbody"></tbody>
-        </table>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table">
+            <thead><tr><th>日期</th><th>仓库</th><th>供应商</th><th>商品</th><th>分类</th><th>数量</th><th>单价</th><th>小计</th><th>操作</th></tr></thead>
+            <tbody id="purchaseTbody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
-    <section class="panel" id="tab-sales">
-      <h2 class="title">销售管理</h2>
-      <div class="card">
-        <form id="salesForm" class="form-grid">
-          <div class="form-group"><label>日期</label><input type="date" id="sDate" required /></div>
-          <div class="form-group"><label>商品名称</label><input type="text" id="sProduct" list="productList" required /></div>
-          <div class="form-group"><label>分类</label><select id="sCategory"></select></div>
-          <div class="form-group"><label>出库仓库</label><select id="sWarehouse"></select></div>
-          <div class="form-group"><label>数量</label><input type="number" id="sQty" min="0.01" step="0.01" required /></div>
-          <div class="form-group"><label>售价</label><input type="number" id="sPrice" min="0" step="0.01" required /></div>
-          <div class="form-group"><label>付款方式</label><select id="sPaymentType"><option value="cash">现款</option><option value="credit">赊账</option></select></div>
-          <div class="form-group"><label>客户(赊账必填)</label><input type="text" id="sCustomer" list="customerList" placeholder="赊账客户名" /></div>
-          <div class="form-group"><label>本次收款</label><input type="number" id="sPaidNow" min="0" step="0.01" value="0" /></div>
-          <div class="form-group"><label>买方信息</label><input type="text" id="sBuyer" /></div>
-          <div class="form-group"><button class="btn-primary" type="submit">新增销售</button></div>
+    <section id="tab-sales" class="panel hidden space-y-6">
+      <h2 class="lx-page-title">销售管理</h2>
+      <div class="lx-card">
+        <form id="salesForm" class="lx-form-grid">
+          <div class="min-w-0"><label class="lx-label" for="sDate">日期</label><input type="date" id="sDate" class="lx-input" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="sProduct">商品名称</label><input type="text" id="sProduct" class="lx-input" list="productList" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="sCategory">分类</label><select id="sCategory"></select></div>
+          <div class="min-w-0"><label class="lx-label" for="sWarehouse">出库仓库</label><select id="sWarehouse"></select></div>
+          <div class="min-w-0"><label class="lx-label" for="sQty">数量</label><input type="number" id="sQty" class="lx-input" min="0.01" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="sPrice">售价</label><input type="number" id="sPrice" class="lx-input" min="0" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="sPaymentType">付款方式</label><select id="sPaymentType"><option value="cash">现款</option><option value="credit">赊账</option></select></div>
+          <div class="min-w-0"><label class="lx-label" for="sCustomer">客户(赊账必填)</label><input type="text" id="sCustomer" class="lx-input" list="customerList" placeholder="赊账客户名" /></div>
+          <div class="min-w-0"><label class="lx-label" for="sPaidNow">本次收款</label><input type="number" id="sPaidNow" class="lx-input" min="0" step="0.01" value="0" /></div>
+          <div class="min-w-0"><label class="lx-label" for="sBuyer">买方信息</label><input type="text" id="sBuyer" class="lx-input" /></div>
+          <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增销售</button></div>
         </form>
       </div>
-      <div class="card">
-        <form class="form-grid" onsubmit="return false;">
-          <div class="form-group"><label>搜索商品</label><input id="salesSearch" placeholder="关键字" /></div>
-          <div class="form-group"><label>分类筛选</label><select id="salesCategoryFilter"><option value="">全部分类</option></select></div>
+      <div class="lx-card">
+        <form class="lx-form-grid" onsubmit="return false;">
+          <div class="min-w-0"><label class="lx-label" for="salesSearch">搜索商品</label><input id="salesSearch" class="lx-input" placeholder="关键字" /></div>
+          <div class="min-w-0"><label class="lx-label" for="salesCategoryFilter">分类筛选</label><select id="salesCategoryFilter"><option value="">全部分类</option></select></div>
         </form>
       </div>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>分类</th><th>付款</th><th>客户</th><th>数量</th><th>售价</th><th>成本</th><th>小计</th><th>已收</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
-          <tbody id="salesTbody"></tbody>
-        </table>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table">
+            <thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>分类</th><th>付款</th><th>客户</th><th>数量</th><th>售价</th><th>成本</th><th>小计</th><th>已收</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
+            <tbody id="salesTbody"></tbody>
+          </table>
+        </div>
       </div>
     </section>
 
-    <section class="panel" id="tab-receivables">
-      <h2 class="title">应收账款</h2>
-      <div class="card">
-        <form class="form-grid" onsubmit="return false;">
-          <div class="form-group" style="grid-column:span 2">
-            <label>快速查找</label>
-            <input type="text" id="arSearchFilter" placeholder="客户名、商品名；收款记录还可按备注筛选" list="customerList" autocomplete="off" />
+    <section id="tab-receivables" class="panel hidden space-y-6">
+      <h2 class="lx-page-title">应收账款</h2>
+      <div class="lx-card">
+        <form class="lx-form-grid" onsubmit="return false;">
+          <div class="lx-span-2 min-w-0">
+            <label class="lx-label" for="arSearchFilter">快速查找</label>
+            <input type="text" id="arSearchFilter" class="lx-input" placeholder="客户名、商品名；收款记录还可按备注筛选" list="customerList" autocomplete="off" />
           </div>
         </form>
       </div>
-      <div class="card">
-        <h3 class="muted" style="margin-top:0">登记收款（按客户自动核销最早赊欠）</h3>
-        <form id="receiptForm" class="form-grid">
-          <div class="form-group"><label>日期</label><input type="date" id="rcDate" required /></div>
-          <div class="form-group"><label>客户</label><input type="text" id="rcCustomer" list="customerList" required /></div>
-          <div class="form-group"><label>收款金额</label><input type="number" id="rcAmount" min="0.01" step="0.01" required /></div>
-          <div class="form-group" style="grid-column:span 2"><label>备注</label><input type="text" id="rcNote" placeholder="可选" /></div>
-          <div class="form-group"><button class="btn-primary" type="submit">保存收款</button></div>
+      <div class="lx-card">
+        <h3 class="lx-section-title">登记收款（按客户自动核销最早赊欠）</h3>
+        <form id="receiptForm" class="lx-form-grid">
+          <div class="min-w-0"><label class="lx-label" for="rcDate">日期</label><input type="date" id="rcDate" class="lx-input" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="rcCustomer">客户</label><input type="text" id="rcCustomer" class="lx-input" list="customerList" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="rcAmount">收款金额</label><input type="number" id="rcAmount" class="lx-input" min="0.01" step="0.01" required /></div>
+          <div class="lx-span-2 min-w-0"><label class="lx-label" for="rcNote">备注</label><input type="text" id="rcNote" class="lx-input" placeholder="可选" /></div>
+          <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">保存收款</button></div>
         </form>
       </div>
-      <div class="card">
-        <h3 class="muted" style="margin-top:0">客户欠款汇总</h3>
-        <div class="table-wrap"><table><thead><tr><th>客户</th><th>应收余额</th></tr></thead><tbody id="arSummaryTbody"></tbody></table></div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">客户欠款汇总</h3>
+        </div>
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table"><thead><tr><th>客户</th><th>应收余额</th></tr></thead><tbody id="arSummaryTbody"></tbody></table>
+        </div>
       </div>
-      <div class="card">
-        <h3 class="muted" style="margin-top:0">赊销明细（未结清）</h3>
-        <div class="table-wrap"><table><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>剩余欠款</th><th>已收款</th></tr></thead><tbody id="arCreditTbody"></tbody></table></div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">赊销明细（未结清）</h3>
+        </div>
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>剩余欠款</th><th>已收款</th></tr></thead><tbody id="arCreditTbody"></tbody></table>
+        </div>
       </div>
-      <div class="card">
-        <h3 class="muted" style="margin-top:0">已收款（已结清）</h3>
-        <div class="table-wrap"><table><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>手动结清</th><th>已收合计</th></tr></thead><tbody id="arPaidTbody"></tbody></table></div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">已收款（已结清）</h3>
+        </div>
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>手动结清</th><th>已收合计</th></tr></thead><tbody id="arPaidTbody"></tbody></table>
+        </div>
       </div>
-      <div class="card">
-        <h3 class="muted" style="margin-top:0">收款记录</h3>
-        <div class="table-wrap"><table><thead><tr><th>日期</th><th>客户</th><th>金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="receiptTbody"></tbody></table></div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">收款记录</h3>
+        </div>
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="receiptTbody"></tbody></table>
+        </div>
       </div>
     </section>
 
-    <section class="panel" id="tab-inventory">
-      <h2 class="title">库存管理</h2>
-      <div class="card">
-        <form id="adjustForm" class="form-grid">
-          <div class="form-group"><label>日期</label><input type="date" id="aDate" required /></div>
-          <div class="form-group"><label>仓库</label><select id="aWarehouse"></select></div>
-          <div class="form-group"><label>商品名称</label><input type="text" id="aProduct" list="productList" required /></div>
-          <div class="form-group"><label>调整数量(可正可负)</label><input type="number" id="aQty" step="0.01" required /></div>
-          <div class="form-group" style="grid-column:span 2"><label>调整原因</label><input type="text" id="aReason" required /></div>
-          <div class="form-group"><button class="btn-primary" type="submit">新增调整</button></div>
+    <section id="tab-inventory" class="panel hidden space-y-6">
+      <h2 class="lx-page-title">库存管理</h2>
+      <div class="lx-card">
+        <form id="adjustForm" class="lx-form-grid">
+          <div class="min-w-0"><label class="lx-label" for="aDate">日期</label><input type="date" id="aDate" class="lx-input" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="aWarehouse">仓库</label><select id="aWarehouse"></select></div>
+          <div class="min-w-0"><label class="lx-label" for="aProduct">商品名称</label><input type="text" id="aProduct" class="lx-input" list="productList" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="aQty">调整数量(可正可负)</label><input type="number" id="aQty" class="lx-input" step="0.01" required /></div>
+          <div class="lx-span-2 min-w-0"><label class="lx-label" for="aReason">调整原因</label><input type="text" id="aReason" class="lx-input" required /></div>
+          <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增调整</button></div>
         </form>
       </div>
-      <div class="card">
-        <h3 class="muted" style="margin-top:0">仓间调拨</h3>
-        <form id="transferForm" class="form-grid">
-          <div class="form-group"><label>日期</label><input type="date" id="tDate" required /></div>
-          <div class="form-group"><label>商品</label><input type="text" id="tProduct" list="productList" required /></div>
-          <div class="form-group"><label>数量</label><input type="number" id="tQty" min="0.01" step="0.01" required /></div>
-          <div class="form-group"><label>从仓库</label><select id="tFrom"></select></div>
-          <div class="form-group"><label>到仓库</label><select id="tTo"></select></div>
-          <div class="form-group" style="grid-column:span 2"><label>备注</label><input type="text" id="tNote" /></div>
-          <div class="form-group"><button class="btn-primary" type="submit">确认调拨</button></div>
+      <div class="lx-card">
+        <h3 class="lx-section-title">仓间调拨</h3>
+        <form id="transferForm" class="lx-form-grid">
+          <div class="min-w-0"><label class="lx-label" for="tDate">日期</label><input type="date" id="tDate" class="lx-input" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="tProduct">商品</label><input type="text" id="tProduct" class="lx-input" list="productList" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="tQty">数量</label><input type="number" id="tQty" class="lx-input" min="0.01" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="tFrom">从仓库</label><select id="tFrom"></select></div>
+          <div class="min-w-0"><label class="lx-label" for="tTo">到仓库</label><select id="tTo"></select></div>
+          <div class="lx-span-2 min-w-0"><label class="lx-label" for="tNote">备注</label><input type="text" id="tNote" class="lx-input" /></div>
+          <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">确认调拨</button></div>
         </form>
       </div>
-      <div class="card">
-        <div class="form-group"><label>库存查看仓库</label><select id="invWarehouseFilter"><option value="">全部仓库</option></select></div>
+      <div class="lx-card">
+        <div class="min-w-0 max-w-md"><label class="lx-label" for="invWarehouseFilter">库存查看仓库</label><select id="invWarehouseFilter"><option value="">全部仓库</option></select></div>
       </div>
-      <p class="muted">当前库存（按仓库）</p>
-      <div class="table-wrap" style="margin-bottom:12px">
-        <table><thead><tr><th>仓库</th><th>商品</th><th>分类</th><th>库存数量</th><th>库存均价</th><th>库存成本</th></tr></thead><tbody id="inventoryTbody"></tbody></table>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <p class="lx-muted">当前库存（按仓库）</p>
+        </div>
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table"><thead><tr><th>仓库</th><th>商品</th><th>分类</th><th>库存数量</th><th>库存均价</th><th>库存成本</th></tr></thead><tbody id="inventoryTbody"></tbody></table>
+        </div>
       </div>
-      <p class="muted">调拨记录</p>
-      <div class="table-wrap" style="margin-bottom:12px">
-        <table><thead><tr><th>日期</th><th>商品</th><th>数量</th><th>从</th><th>到</th><th>备注</th><th>操作</th></tr></thead><tbody id="transferTbody"></tbody></table>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <p class="lx-muted">调拨记录</p>
+        </div>
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table"><thead><tr><th>日期</th><th>商品</th><th>数量</th><th>从</th><th>到</th><th>备注</th><th>操作</th></tr></thead><tbody id="transferTbody"></tbody></table>
+        </div>
       </div>
-      <p class="muted">库存调整记录</p>
-      <div class="table-wrap">
-        <table><thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>调整数量</th><th>原因</th><th>操作</th></tr></thead><tbody id="adjustTbody"></tbody></table>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <p class="lx-muted">库存调整记录</p>
+        </div>
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table"><thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>调整数量</th><th>原因</th><th>操作</th></tr></thead><tbody id="adjustTbody"></tbody></table>
+        </div>
       </div>
     </section>
 
-    <section class="panel" id="tab-basics">
-      <h2 class="title">基础设置</h2>
-      <div class="card">
-        <h3 class="muted" style="margin-top:0">仓库管理</h3>
-        <form id="warehouseForm" class="form-grid">
-          <div class="form-group"><label>新仓库名称</label><input id="newWarehouse" placeholder="例如：二号库" /></div>
-          <div class="form-group"><button class="btn-primary" type="submit">新增仓库</button></div>
-        </form>
-        <div class="table-wrap"><table><thead><tr><th>仓库名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="warehouseTbody"></tbody></table></div>
+    <section id="tab-basics" class="panel hidden space-y-6">
+      <h2 class="lx-page-title">基础设置</h2>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">仓库管理</h3>
+        </div>
+        <div class="p-6">
+          <form id="warehouseForm" class="lx-form-grid">
+            <div class="min-w-0"><label class="lx-label" for="newWarehouse">新仓库名称</label><input id="newWarehouse" class="lx-input" placeholder="例如：二号库" /></div>
+            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增仓库</button></div>
+          </form>
+        </div>
+        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
+          <table class="lx-table"><thead><tr><th>仓库名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="warehouseTbody"></tbody></table>
+        </div>
       </div>
-      <div class="card">
-        <h3 class="muted" style="margin-top:0">分类管理</h3>
-        <form id="categoryForm" class="form-grid">
-          <div class="form-group"><label>新分类名称</label><input id="newCategory" placeholder="例如：管材类" /></div>
-          <div class="form-group"><button class="btn-primary" type="submit">新增分类</button></div>
-        </form>
-        <div class="table-wrap"><table><thead><tr><th>分类名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="categoryTbody"></tbody></table></div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">分类管理</h3>
+        </div>
+        <div class="p-6">
+          <form id="categoryForm" class="lx-form-grid">
+            <div class="min-w-0"><label class="lx-label" for="newCategory">新分类名称</label><input id="newCategory" class="lx-input" placeholder="例如：管材类" /></div>
+            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增分类</button></div>
+          </form>
+        </div>
+        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
+          <table class="lx-table"><thead><tr><th>分类名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="categoryTbody"></tbody></table>
+        </div>
       </div>
     </section>
 
-    <section class="panel" id="tab-analytics">
-      <h2 class="title">统计分析</h2>
-      <div class="card">
-        <form id="filterForm" class="form-grid">
-          <div class="form-group"><label>开始日期</label><input type="date" id="fStart" /></div>
-          <div class="form-group"><label>结束日期</label><input type="date" id="fEnd" /></div>
-          <div class="form-group"><label>仓库</label><select id="fWarehouse"><option value="">全部仓库</option></select></div>
-          <div class="form-group"><label>利润粒度</label><select id="fGroup"><option value="day">按日</option><option value="week">按周</option><option value="month">按月</option></select></div>
-          <div class="form-group"><label>分类筛选</label><select id="fCategory"><option value="">全部分类</option></select></div>
-          <div class="form-group"><button class="btn-primary" type="submit">查询统计</button></div>
-          <div class="form-group"><button class="btn-secondary" type="button" id="resetFilterBtn">重置</button></div>
-          <div class="form-group"><button class="btn-secondary" type="button" id="exportMonthBtn">导出当月Excel</button></div>
+    <section id="tab-analytics" class="panel hidden space-y-6">
+      <h2 class="lx-page-title">统计分析</h2>
+      <div class="lx-card">
+        <form id="filterForm" class="lx-form-grid">
+          <div class="min-w-0"><label class="lx-label" for="fStart">开始日期</label><input type="date" id="fStart" class="lx-input" /></div>
+          <div class="min-w-0"><label class="lx-label" for="fEnd">结束日期</label><input type="date" id="fEnd" class="lx-input" /></div>
+          <div class="min-w-0"><label class="lx-label" for="fWarehouse">仓库</label><select id="fWarehouse"><option value="">全部仓库</option></select></div>
+          <div class="min-w-0"><label class="lx-label" for="fGroup">利润粒度</label><select id="fGroup"><option value="day">按日</option><option value="week">按周</option><option value="month">按月</option></select></div>
+          <div class="min-w-0"><label class="lx-label" for="fCategory">分类筛选</label><select id="fCategory"><option value="">全部分类</option></select></div>
+          <div class="min-w-0 flex flex-wrap items-end gap-2">
+            <button class="lx-btn-primary" type="submit">查询统计</button>
+            <button class="lx-btn-secondary" type="button" id="resetFilterBtn">重置</button>
+            <button class="lx-btn-secondary" type="button" id="exportMonthBtn">导出当月Excel</button>
+          </div>
         </form>
       </div>
-      <div class="summary-grid">
-        <div class="stat-card"><div class="stat-label">销售额</div><div class="stat-value" id="sumRevenue">¥0.00</div></div>
-        <div class="stat-card"><div class="stat-label">销售成本</div><div class="stat-value" id="sumCogs">¥0.00</div></div>
-        <div class="stat-card"><div class="stat-label">利润</div><div class="stat-value" id="sumProfit">¥0.00</div></div>
-        <div class="stat-card"><div class="stat-label">利润率</div><div class="stat-value" id="sumMargin">0.00%</div></div>
+      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">销售额</div><div class="lx-money mt-2 text-xl" id="sumRevenue">¥0.00</div></div>
+        <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">销售成本</div><div class="lx-money mt-2 text-xl" id="sumCogs">¥0.00</div></div>
+        <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">利润</div><div class="lx-money mt-2 text-xl" id="sumProfit">¥0.00</div></div>
+        <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">利润率</div><div class="mt-2 text-xl font-bold tabular-nums text-slate-900 dark:text-white" id="sumMargin">0.00%</div></div>
       </div>
-      <p class="muted" style="margin-top:14px">每日趋势图（收入 / 支出 / 利润）</p>
-      <div class="chart-wrap">
+      <p class="lx-muted mt-2">每日趋势图（收入 / 支出 / 利润）</p>
+      <div class="lx-chart-card">
         <canvas id="trendChart" height="280"></canvas>
-        <div class="legend">
-          <span><i style="background:#2563eb"></i>收入</span>
-          <span><i style="background:#d97706"></i>支出</span>
-          <span><i style="background:#16a34a"></i>利润</span>
+        <div class="mt-4 flex flex-wrap gap-6 text-sm text-slate-500 dark:text-slate-400">
+          <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-blue-600"></i>收入</span>
+          <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-amber-600"></i>支出</span>
+          <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-emerald-600"></i>利润</span>
         </div>
       </div>
-      <p class="muted" style="margin-top:14px">每日 / 每周 / 每月利润统计</p>
-      <div class="table-wrap" style="margin-bottom:12px">
-        <table><thead><tr><th>周期</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="profitGroupTbody"></tbody></table>
+      <p class="lx-muted mt-2">每日 / 每周 / 每月利润统计</p>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table"><thead><tr><th>周期</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="profitGroupTbody"></tbody></table>
+        </div>
       </div>
-      <p class="muted">商品销售统计</p>
-      <div class="table-wrap" style="margin-bottom:12px">
-        <table><thead><tr><th>商品</th><th>分类</th><th>进货量</th><th>销售量</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="productStatsTbody"></tbody></table>
+      <p class="lx-muted mt-2">商品销售统计</p>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table"><thead><tr><th>商品</th><th>分类</th><th>进货量</th><th>销售量</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="productStatsTbody"></tbody></table>
+        </div>
       </div>
-      <p class="muted">按品类统计</p>
-      <div class="table-wrap">
-        <table><thead><tr><th>品类</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润贡献占比</th></tr></thead><tbody id="categoryStatsTbody"></tbody></table>
+      <p class="lx-muted mt-2">按品类统计</p>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="lx-table-wrap border-0 shadow-none">
+          <table class="lx-table"><thead><tr><th>品类</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润贡献占比</th></tr></thead><tbody id="categoryStatsTbody"></tbody></table>
+        </div>
       </div>
-      <div class="card">
-        <h3 class="muted" style="margin-top:0">畅销榜</h3>
-        <p class="muted" style="margin:0 0 10px;font-size:0.85rem">统计所选期间内的<strong>销售单</strong>数量与销售额。下方「畅销榜」起止日期可单独填写；若留空，则使用上方「开始日期」「结束日期」。仓库、分类仍与上方筛选一致。</p>
-        <form id="bestsellerForm" class="form-grid" onsubmit="return false;">
-          <div class="form-group"><label>畅销榜开始日期</label><input type="date" id="bsStart" /></div>
-          <div class="form-group"><label>畅销榜结束日期</label><input type="date" id="bsEnd" /></div>
-          <div class="form-group"><button type="submit" class="btn-primary">更新畅销榜</button></div>
+      <div class="lx-card space-y-5">
+        <h3 class="lx-section-title !mb-0">畅销榜</h3>
+        <p class="lx-muted text-[13px] leading-relaxed">统计所选期间内的<strong>销售单</strong>数量与销售额。下方「畅销榜」起止日期可单独填写；若留空，则使用上方「开始日期」「结束日期」。仓库、分类仍与上方筛选一致。</p>
+        <form id="bestsellerForm" class="lx-form-grid" onsubmit="return false;">
+          <div class="min-w-0"><label class="lx-label" for="bsStart">畅销榜开始日期</label><input type="date" id="bsStart" class="lx-input" /></div>
+          <div class="min-w-0"><label class="lx-label" for="bsEnd">畅销榜结束日期</label><input type="date" id="bsEnd" class="lx-input" /></div>
+          <div class="min-w-0 flex items-end"><button type="submit" class="lx-btn-primary w-full sm:w-auto">更新畅销榜</button></div>
         </form>
-        <p class="muted" style="margin:12px 0 6px">按商品（同名合并，按销售额排序）</p>
-        <div class="table-wrap" style="margin-bottom:12px">
-          <table><thead><tr><th>名次</th><th>商品</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerProductTbody"></tbody></table>
+        <p class="lx-muted">按商品（同名合并，按销售额排序）</p>
+        <div class="lx-table-wrap">
+          <table class="lx-table"><thead><tr><th>名次</th><th>商品</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerProductTbody"></tbody></table>
         </div>
-        <p class="muted" style="margin:12px 0 6px">按分类（按销售额排序）</p>
-        <div class="table-wrap">
-          <table><thead><tr><th>名次</th><th>分类</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerCategoryTbody"></tbody></table>
+        <p class="lx-muted">按分类（按销售额排序）</p>
+        <div class="lx-table-wrap">
+          <table class="lx-table"><thead><tr><th>名次</th><th>分类</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerCategoryTbody"></tbody></table>
         </div>
       </div>
     </section>
 
     <datalist id="productList"></datalist>
     <datalist id="customerList"></datalist>
-    <input id="backupFileInput" type="file" accept=".json,application/json" style="display:none" />
+    <input id="backupFileInput" type="file" accept=".json,application/json" class="hidden" />
   </div>
-  <div id="modalOverlay" class="modal-overlay" aria-hidden="true"></div>
-  <script src="lingxin-ims-app.js?v=20260514"></script>
+  <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
+  <script src="lingxin-ims-app.js?v=20260516"></script>
   <script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('./service-worker.js?v=20260514').catch(function (err) {
-        console.log('SW 注册失败:', err);
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", function () {
+        navigator.serviceWorker.register("./service-worker.js?v=20260516").catch(function (err) {
+          console.log("SW 注册失败:", err);
+        });
       });
-    });
-  }
+    }
   </script>
 </body>
 </html>

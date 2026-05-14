@@ -8,6 +8,18 @@
   const REMINDER_KEY = "hardware_ims_backup_reminder_v1";
   const CLOUD_SYNC_KEY = "hardware_ims_cloud_sync_v1";
 
+  const ICO_EDIT =
+    '<svg class="h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>';
+  const ICO_TRASH =
+    '<svg class="h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" /></svg>';
+
+  function lxIconEdit(attrs) {
+    return `<button type="button" class="lx-icon-btn" title="编辑" ${attrs}>${ICO_EDIT}</button>`;
+  }
+  function lxIconDel(attrs) {
+    return `<button type="button" class="lx-icon-btn-danger" title="删除" ${attrs}>${ICO_TRASH}</button>`;
+  }
+
   function uid() {
     if (typeof crypto !== "undefined" && crypto.randomUUID) return crypto.randomUUID();
     return "id_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 9);
@@ -403,15 +415,15 @@
       return;
     }
     overlay.innerHTML = `
-      <div class="modal" role="dialog" aria-modal="true">
-        <div class="modal-header">
-          <div class="modal-title">${escapeHtml(title)}</div>
-          <button type="button" class="btn-link" data-modal-close>关闭</button>
+      <div class="lx-modal-shell w-full max-w-lg rounded-3xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900" role="dialog" aria-modal="true">
+        <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+          <div class="text-lg font-bold text-slate-900 dark:text-white">${escapeHtml(title)}</div>
+          <button type="button" class="rounded-lg px-3 py-1.5 text-sm text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-slate-800 dark:hover:text-slate-200" data-modal-close>关闭</button>
         </div>
-        <div class="modal-body">${bodyHtml}</div>
-        <div class="modal-footer">
-          <button type="button" class="btn-secondary" data-modal-cancel>取消</button>
-          <button type="button" class="btn-primary" data-modal-save>保存</button>
+        <div class="max-h-[min(70vh,520px)] overflow-y-auto px-5 py-4">${bodyHtml}</div>
+        <div class="flex justify-end gap-3 border-t border-slate-100 px-5 py-4 dark:border-slate-800">
+          <button type="button" class="lx-btn-outline px-4" data-modal-cancel>取消</button>
+          <button type="button" class="lx-btn-primary min-w-[5rem]" data-modal-save>保存</button>
         </div>
       </div>
     `;
@@ -427,7 +439,7 @@
     overlay.style.background = "rgba(15, 23, 42, 0.55)";
     overlay.style.padding = "14px";
 
-    const modalEl = overlay.querySelector(".modal");
+    const modalEl = overlay.querySelector(".lx-modal-shell");
     if (modalEl) {
       modalEl.addEventListener("click", (e) => e.stopPropagation());
     }
@@ -715,8 +727,8 @@
           <div class="form-group"><label>Bucket(默认)</label><input id="m_bucket" value="${escapeHtml(cfg.bucket || "lingxin-ims")}"></div>
           <div class="form-group"><label>同步码(建议手机号)</label><input id="m_code" placeholder="例如：13800138000" value="${escapeHtml(cfg.code || "")}"></div>
           <div class="form-group" style="grid-column:span 2"><label>说明</label><input value="同一个同步码=同一套数据，多设备共用" disabled></div>
-          <div class="form-group"><button type="button" class="btn-secondary" id="m_pull">从云端下载覆盖本机</button></div>
-          <div class="form-group"><button type="button" class="btn-secondary" id="m_push">上传本机到云端</button></div>
+          <div class="form-group"><button type="button" class="lx-btn-secondary" id="m_pull">从云端下载覆盖本机</button></div>
+          <div class="form-group"><button type="button" class="lx-btn-secondary" id="m_push">上传本机到云端</button></div>
         </form>
       `;
         openModal("云同步设置", body, async () => {
@@ -777,7 +789,11 @@
     btn.addEventListener("click", () => {
       const tab = btn.getAttribute("data-tab");
       els.tabBtns.forEach((b) => b.classList.toggle("active", b === btn));
-      els.panels.forEach((p) => p.classList.toggle("active", p.id === "tab-" + tab));
+      els.panels.forEach((p) => {
+        const on = p.id === "tab-" + tab;
+        p.classList.toggle("hidden", !on);
+        p.classList.toggle("block", on);
+      });
       if (tab === "analytics") renderAnalytics();
     });
   });
@@ -822,11 +838,10 @@
         <td data-label="商品">${p.product || ""}</td>
         <td data-label="分类">${catName(state, p.categoryId)}</td>
         <td data-label="数量">${num(p.qty).toFixed(2)}</td>
-        <td data-label="单价">${money(p.price)}</td>
-        <td data-label="小计">${money(sub)}</td>
-        <td data-label="操作">
-          <button type="button" class="btn-mini" data-edit-p="${p.id}">编辑</button>
-          <button type="button" class="btn-danger" data-del-p="${p.id}">删除</button>
+        <td data-label="单价" class="lx-money">${money(p.price)}</td>
+        <td data-label="小计" class="lx-money">${money(sub)}</td>
+        <td data-label="操作" class="text-right">
+          <div class="flex flex-wrap justify-end gap-1.5">${lxIconEdit(`data-edit-p="${p.id}"`)}${lxIconDel(`data-del-p="${p.id}"`)}</div>
         </td>`;
       els.purchaseTbody.appendChild(tr);
     });
@@ -905,15 +920,14 @@
         <td data-label="付款">${pay}</td>
         <td data-label="客户">${s.customerName || ""}</td>
         <td data-label="数量">${num(s.qty).toFixed(2)}</td>
-        <td data-label="售价">${money(s.price)}</td>
-        <td data-label="成本">${money(s.costAtSale)}</td>
-        <td data-label="小计">${money(s.amount)}</td>
-        <td data-label="已收">${money(Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))))}</td>
-        <td data-label="欠款">${rem > 0.0001 ? money(rem) : "—"}</td>
+        <td data-label="售价" class="lx-money">${money(s.price)}</td>
+        <td data-label="成本" class="lx-money">${money(s.costAtSale)}</td>
+        <td data-label="小计" class="lx-money">${money(s.amount)}</td>
+        <td data-label="已收" class="lx-money">${money(Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))))}</td>
+        <td data-label="欠款">${rem > 0.0001 ? `<span class="lx-money">${money(rem)}</span>` : "—"}</td>
         <td data-label="买方">${s.buyer || ""}</td>
-        <td data-label="操作">
-          <button type="button" class="btn-mini" data-edit-s="${s.id}">编辑</button>
-          <button type="button" class="btn-danger" data-del-s="${s.id}">删除</button>
+        <td data-label="操作" class="text-right">
+          <div class="flex flex-wrap justify-end gap-1.5">${lxIconEdit(`data-edit-s="${s.id}"`)}${lxIconDel(`data-del-s="${s.id}"`)}</div>
         </td>`;
       els.salesTbody.appendChild(tr);
     });
@@ -1008,15 +1022,15 @@
       .sort((a, b) => b[1] - a[1])
       .forEach(([name, bal]) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td data-label="客户">${name}</td><td data-label="应收余额">${money(bal)}</td>`;
+        tr.innerHTML = `<td data-label="客户">${name}</td><td data-label="应收余额" class="lx-money">${money(bal)}</td>`;
         els.arSummaryTbody.appendChild(tr);
       });
     if (!els.arSummaryTbody.children.length) {
       const tr = document.createElement("tr");
       tr.innerHTML =
         balances.size === 0
-          ? `<td colspan="2" class="muted">暂无欠款客户</td>`
-          : `<td colspan="2" class="muted">${arQL ? "无匹配记录（试试别的关键词）" : "暂无欠款客户"}</td>`;
+          ? `<td colspan="2" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">暂无欠款客户</td>`
+          : `<td colspan="2" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录（试试别的关键词）" : "暂无欠款客户"}</td>`;
       els.arSummaryTbody.appendChild(tr);
     }
 
@@ -1031,16 +1045,16 @@
         <td data-label="日期">${s.date}</td>
         <td data-label="客户">${String(s.customerName || "").trim() || "（未填写客户）"}</td>
         <td data-label="商品">${s.product || ""}</td>
-        <td data-label="小计">${money(s.amount)}</td>
-        <td data-label="当场已收">${money(s.paidAtSale)}</td>
-        <td data-label="收款核销">${money(s.arReceiptAllocated)}</td>
-        <td data-label="剩余欠款">${money(rem)}</td>
-        <td data-label="已收款"><input type="checkbox" data-ar-paid="${s.id}" /></td>`;
+        <td data-label="小计" class="lx-money">${money(s.amount)}</td>
+        <td data-label="当场已收" class="lx-money">${money(s.paidAtSale)}</td>
+        <td data-label="收款核销" class="lx-money">${money(s.arReceiptAllocated)}</td>
+        <td data-label="剩余欠款" class="lx-money">${money(rem)}</td>
+        <td data-label="已收款"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600" data-ar-paid="${s.id}" /></td>`;
       els.arCreditTbody.appendChild(tr);
     });
     if (!els.arCreditTbody.children.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="8" class="muted">${arQL ? "无匹配记录" : "暂无未结清欠款"}</td>`;
+      tr.innerHTML = `<td colspan="8" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无未结清欠款"}</td>`;
       els.arCreditTbody.appendChild(tr);
     }
 
@@ -1063,16 +1077,16 @@
           <td data-label="日期">${s.date}</td>
           <td data-label="客户">${String(s.customerName || "").trim() || "（未填写客户）"}</td>
           <td data-label="商品">${s.product || ""}</td>
-          <td data-label="小计">${money(s.amount)}</td>
-          <td data-label="当场已收">${money(s.paidAtSale)}</td>
-          <td data-label="收款核销">${money(s.arReceiptAllocated)}</td>
-          <td data-label="手动结清">${money(manual)}</td>
-          <td data-label="已收合计">${money(paidTotal)}</td>`;
+          <td data-label="小计" class="lx-money">${money(s.amount)}</td>
+          <td data-label="当场已收" class="lx-money">${money(s.paidAtSale)}</td>
+          <td data-label="收款核销" class="lx-money">${money(s.arReceiptAllocated)}</td>
+          <td data-label="手动结清" class="lx-money">${money(manual)}</td>
+          <td data-label="已收合计" class="lx-money">${money(paidTotal)}</td>`;
         paidTbody.appendChild(tr);
       });
       if (!paidTbody.children.length) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td colspan="8" class="muted">${arQL ? "无匹配记录" : "暂无已结清记录"}</td>`;
+        tr.innerHTML = `<td colspan="8" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无已结清记录"}</td>`;
         paidTbody.appendChild(tr);
       }
     }
@@ -1090,14 +1104,14 @@
         tr.innerHTML = `
           <td data-label="日期">${r.date}</td>
           <td data-label="客户">${r.customerName || ""}</td>
-          <td data-label="金额">${money(r.amount)}</td>
+          <td data-label="金额" class="lx-money">${money(r.amount)}</td>
           <td data-label="备注">${r.note || ""}</td>
-          <td data-label="操作"><button type="button" class="btn-danger" data-del-r="${r.id}">删除</button></td>`;
+          <td data-label="操作" class="text-right">${lxIconDel(`data-del-r="${r.id}"`)}</td>`;
         els.receiptTbody.appendChild(tr);
       });
     if (!els.receiptTbody.children.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="5" class="muted">${arQL ? "无匹配记录" : "暂无收款记录"}</td>`;
+      tr.innerHTML = `<td colspan="5" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无收款记录"}</td>`;
       els.receiptTbody.appendChild(tr);
     }
     els.receiptTbody.querySelectorAll("[data-del-r]").forEach((b) => {
@@ -1145,8 +1159,8 @@
         <td data-label="商品">${prod}</td>
         <td data-label="分类">${catId ? catName(state, catId) : "—"}</td>
         <td data-label="库存数量">${num(c.qty).toFixed(2)}</td>
-        <td data-label="库存均价">${money(avg)}</td>
-        <td data-label="库存成本">${money(c.totalCost)}</td>`;
+        <td data-label="库存均价" class="lx-money">${money(avg)}</td>
+        <td data-label="库存成本" class="lx-money">${money(c.totalCost)}</td>`;
       els.inventoryTbody.appendChild(tr);
     });
 
@@ -1162,7 +1176,7 @@
           <td data-label="从">${whName(state, t.fromWarehouseId)}</td>
           <td data-label="到">${whName(state, t.toWarehouseId)}</td>
           <td data-label="备注">${t.note || ""}</td>
-          <td data-label="操作"><button type="button" class="btn-danger" data-del-t="${t.id}">删除</button></td>`;
+          <td data-label="操作" class="text-right">${lxIconDel(`data-del-t="${t.id}"`)}</td>`;
         els.transferTbody.appendChild(tr);
       });
     els.transferTbody.querySelectorAll("[data-del-t]").forEach((b) => {
@@ -1186,7 +1200,7 @@
           <td data-label="商品">${a.product}</td>
           <td data-label="调整数量">${num(a.qty).toFixed(2)}</td>
           <td data-label="原因">${a.reason || ""}</td>
-          <td data-label="操作"><button type="button" class="btn-danger" data-del-a="${a.id}">删除</button></td>`;
+          <td data-label="操作" class="text-right">${lxIconDel(`data-del-a="${a.id}"`)}</td>`;
         els.adjustTbody.appendChild(tr);
       });
     els.adjustTbody.querySelectorAll("[data-del-a]").forEach((b) => {
@@ -1204,10 +1218,12 @@
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td data-label="仓库名">${w.name}</td>
-        <td data-label="重命名"><input type="text" data-wh-rename="${w.id}" placeholder="新名称" style="max-width:140px" /></td>
-        <td data-label="操作">
-          <button type="button" class="btn-secondary" data-wh-apply="${w.id}">保存名称</button>
-          <button type="button" class="btn-danger" data-wh-del="${w.id}">删除</button>
+        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-wh-rename="${w.id}" placeholder="新名称" /></td>
+        <td data-label="操作" class="text-right">
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" class="lx-btn-secondary text-xs" data-wh-apply="${w.id}">保存名称</button>
+            ${lxIconDel(`data-wh-del="${w.id}"`)}
+          </div>
         </td>`;
       els.warehouseTbody.appendChild(tr);
     });
@@ -1244,10 +1260,12 @@
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td data-label="分类名">${c.name}</td>
-        <td data-label="重命名"><input type="text" data-cat-rename="${c.id}" placeholder="新名称" style="max-width:140px" /></td>
-        <td data-label="操作">
-          <button type="button" class="btn-secondary" data-cat-apply="${c.id}">保存名称</button>
-          <button type="button" class="btn-danger" data-cat-del="${c.id}">删除</button>
+        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-cat-rename="${c.id}" placeholder="新名称" /></td>
+        <td data-label="操作" class="text-right">
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" class="lx-btn-secondary text-xs" data-cat-apply="${c.id}">保存名称</button>
+            ${lxIconDel(`data-cat-del="${c.id}"`)}
+          </div>
         </td>`;
       els.categoryTbody.appendChild(tr);
     });
@@ -1332,9 +1350,9 @@
       const prof = rev - cg;
       const mar = rev > 0 ? (100 * prof) / rev : 0;
       const tr = document.createElement("tr");
-      tr.innerHTML = `<td data-label="周期">${k}</td><td data-label="销售额">${money(rev)}</td><td data-label="销售成本">${money(
+      tr.innerHTML = `<td data-label="周期">${k}</td><td data-label="销售额" class="lx-money">${money(rev)}</td><td data-label="销售成本" class="lx-money">${money(
         cg
-      )}</td><td data-label="利润">${money(prof)}</td><td data-label="利润率">${mar.toFixed(2)}%</td>`;
+      )}</td><td data-label="利润" class="lx-money">${money(prof)}</td><td data-label="利润率">${mar.toFixed(2)}%</td>`;
       els.profitGroupTbody.appendChild(tr);
     });
 
@@ -1383,9 +1401,9 @@
           <td data-label="分类">${catName(state, o.categoryId)}</td>
           <td data-label="进货量">${(o.qtyIn || 0).toFixed(2)}</td>
           <td data-label="销售量">${num(o.qtySold).toFixed(2)}</td>
-          <td data-label="销售额">${money(o.revenue)}</td>
-          <td data-label="销售成本">${money(o.cogs)}</td>
-          <td data-label="利润">${money(prof)}</td>
+          <td data-label="销售额" class="lx-money">${money(o.revenue)}</td>
+          <td data-label="销售成本" class="lx-money">${money(o.cogs)}</td>
+          <td data-label="利润" class="lx-money">${money(prof)}</td>
           <td data-label="利润率">${mar.toFixed(2)}%</td>`;
         els.productStatsTbody.appendChild(tr);
       });
@@ -1407,9 +1425,9 @@
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td data-label="品类">${catName(state, cid)}</td>
-          <td data-label="销售额">${money(o.revenue)}</td>
-          <td data-label="销售成本">${money(o.cogs)}</td>
-          <td data-label="利润">${money(prof)}</td>
+          <td data-label="销售额" class="lx-money">${money(o.revenue)}</td>
+          <td data-label="销售成本" class="lx-money">${money(o.cogs)}</td>
+          <td data-label="利润" class="lx-money">${money(prof)}</td>
           <td data-label="利润贡献占比">${share.toFixed(1)}%</td>`;
         els.categoryStatsTbody.appendChild(tr);
       });
@@ -1432,7 +1450,7 @@
       els.bestsellerProductTbody.innerHTML = "";
       prodRows.forEach((o, i) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td data-label="名次">${i + 1}</td><td data-label="商品">${escapeHtml(o.label)}</td><td data-label="销售数量">${o.qty.toFixed(2)}</td><td data-label="销售额">${money(
+        tr.innerHTML = `<td data-label="名次">${i + 1}</td><td data-label="商品">${escapeHtml(o.label)}</td><td data-label="销售数量">${o.qty.toFixed(2)}</td><td data-label="销售额" class="lx-money">${money(
           o.rev
         )}</td>`;
         els.bestsellerProductTbody.appendChild(tr);
@@ -1452,7 +1470,7 @@
       els.bestsellerCategoryTbody.innerHTML = "";
       catRows.forEach((o, i) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td data-label="名次">${i + 1}</td><td data-label="分类">${escapeHtml(catName(state, o.cid))}</td><td data-label="销售数量">${o.qty.toFixed(2)}</td><td data-label="销售额">${money(
+        tr.innerHTML = `<td data-label="名次">${i + 1}</td><td data-label="分类">${escapeHtml(catName(state, o.cid))}</td><td data-label="销售数量">${o.qty.toFixed(2)}</td><td data-label="销售额" class="lx-money">${money(
           o.rev
         )}</td>`;
         els.bestsellerCategoryTbody.appendChild(tr);
@@ -1466,7 +1484,8 @@
     renderSales();
     renderReceivables();
     renderInventory();
-    if (document.getElementById("tab-analytics").classList.contains("active")) renderAnalytics();
+    const _ana = document.getElementById("tab-analytics");
+    if (_ana && !_ana.classList.contains("hidden")) renderAnalytics();
   }
 
   els.pDate.value = todayISO();
@@ -1707,7 +1726,8 @@
   });
 
   window.addEventListener("resize", () => {
-    if (document.getElementById("tab-analytics").classList.contains("active")) renderAnalytics();
+    const _ana = document.getElementById("tab-analytics");
+    if (_ana && !_ana.classList.contains("hidden")) renderAnalytics();
   });
 
   els.sPaymentType.addEventListener("change", () => {

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lingxin-ims-v3';
+const CACHE_NAME = 'lingxin-ims-v5';
 const ASSETS = [
   './',
   './index.html',
@@ -28,6 +28,7 @@ function isShellAssetGet(req) {
     path.endsWith('/') ||
     path.endsWith('/index.html') ||
     path.endsWith('lingxin-ims.css') ||
+    path.endsWith('tailwind.css') ||
     path.endsWith('lingxin-ims-app.js') ||
     path.endsWith('manifest.webmanifest') ||
     path.includes('/icons/')
