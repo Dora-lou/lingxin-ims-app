@@ -7,6 +7,11 @@
   const REMINDER_DAYS = 7;
   const REMINDER_KEY = "hardware_ims_backup_reminder_v1";
   const CLOUD_SYNC_KEY = "hardware_ims_cloud_sync_v1";
+  const LIST_PAGE_SIZE = 50;
+  let purchaseListPage = 1;
+  let salesListPage = 1;
+  const purchaseCheckedIds = new Set();
+  const salesCheckedIds = new Set();
 
   const ICO_EDIT =
     '<svg class="h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" /></svg>';
@@ -48,15 +53,21 @@
   function defaultState() {
     const whId = uid();
     const catId = uid();
+    const unitId = uid();
     return {
       categories: [{ id: catId, name: "未分类" }],
       warehouses: [{ id: whId, name: "默认仓" }],
+      units: [{ id: unitId, name: "件" }],
+      productDefs: [],
+      customerDefs: [],
+      supplierDefs: [],
       purchases: [],
       sales: [],
       adjustments: [],
       transfers: [],
       receipts: [],
       settings: { backupReminderEnabled: true, lastBackupPromptAt: null },
+      suggestions: { products: [], customers: [], suppliers: [] },
     };
   }
 
@@ -85,6 +96,10 @@
     if (!Array.isArray(s.transfers)) s.transfers = [];
     if (!Array.isArray(s.receipts)) s.receipts = [];
     if (!s.settings || typeof s.settings !== "object") s.settings = { backupReminderEnabled: true, lastBackupPromptAt: null };
+    if (!s.suggestions || typeof s.suggestions !== "object") s.suggestions = { products: [], customers: [], suppliers: [] };
+    ["products", "customers", "suppliers"].forEach((k) => {
+      if (!Array.isArray(s.suggestions[k])) s.suggestions[k] = [];
+    });
     const defWh = s.warehouses[0].id;
     const defCat = s.categories[0].id;
     s.purchases = s.purchases.map((p) => ({
@@ -119,7 +134,145 @@
       ...r,
       amount: num(r.amount),
     }));
+    migrateMasterData(s);
+    const defUnitId = s.units[0].id;
+    s.purchases = s.purchases.map((p) => ({ ...p, unitId: p.unitId || defUnitId }));
+    s.sales = s.sales.map((x) => ({ ...x, unitId: x.unitId || defUnitId }));
+    s.adjustments = s.adjustments.map((a) => ({ ...a, unitId: a.unitId || defUnitId }));
+    s.transfers = s.transfers.map((t) => ({ ...t, unitId: t.unitId || defUnitId }));
     return s;
+  }
+
+  function migrateMasterData(s) {
+    if (!Array.isArray(s.units) || !s.units.length) s.units = [{ id: uid(), name: "件" }];
+    ["productDefs", "customerDefs", "supplierDefs"].forEach((k) => {
+      if (!Array.isArray(s[k])) s[k] = [];
+    });
+    if (!s.suggestions || typeof s.suggestions !== "object") s.suggestions = { products: [], customers: [], suppliers: [] };
+    ["products", "customers", "suppliers"].forEach((k) => {
+      if (!Array.isArray(s.suggestions[k])) s.suggestions[k] = [];
+    });
+    const mapSug = { products: "productDefs", customers: "customerDefs", suppliers: "supplierDefs" };
+    Object.keys(mapSug).forEach((sk) => {
+      (s.suggestions[sk] || []).forEach((n) => ensureMasterDef(s, mapSug[sk], n));
+    });
+    syncMastersFromTransactions(s);
+  }
+
+  function ensureMasterDef(st, defsKey, name) {
+    const t = String(name || "").trim();
+    if (!t) return;
+    const arr = st[defsKey];
+    if (!Array.isArray(arr)) return;
+    if (arr.some((x) => String(x.name || "").trim() === t)) return;
+    arr.push({ id: uid(), name: t });
+  }
+
+  function syncMastersFromTransactions(st) {
+    st.purchases.forEach((p) => {
+      ensureMasterDef(st, "productDefs", p.product);
+      ensureMasterDef(st, "supplierDefs", p.supplier);
+    });
+    st.sales.forEach((s) => {
+      ensureMasterDef(st, "productDefs", s.product);
+      ensureMasterDef(st, "customerDefs", s.customerName);
+    });
+    st.adjustments.forEach((a) => ensureMasterDef(st, "productDefs", a.product));
+    st.transfers.forEach((t) => ensureMasterDef(st, "productDefs", t.product));
+    st.receipts.forEach((r) => ensureMasterDef(st, "customerDefs", r.customerName));
+  }
+
+  function defaultUnitId(st) {
+    return (st.units && st.units[0] && st.units[0].id) || "";
+  }
+
+  function defNameTaken(st, defsKey, name, exceptId) {
+    const t = String(name || "").trim();
+    if (!t) return false;
+    const arr = st[defsKey];
+    if (!Array.isArray(arr)) return false;
+    return arr.some((x) => (exceptId == null || x.id !== exceptId) && String(x.name || "").trim() === t);
+  }
+
+  function productNameReferenced(st, name) {
+    const t = productKey(name);
+    if (!t) return false;
+    return (
+      st.purchases.some((p) => productKey(p.product) === t) ||
+      st.sales.some((s) => productKey(s.product) === t) ||
+      st.adjustments.some((a) => productKey(a.product) === t) ||
+      st.transfers.some((x) => productKey(x.product) === t)
+    );
+  }
+
+  function customerNameReferenced(st, name) {
+    const t = String(name || "").trim();
+    if (!t) return false;
+    return (
+      st.sales.some((s) => String(s.customerName || "").trim() === t) ||
+      st.receipts.some((r) => String(r.customerName || "").trim() === t)
+    );
+  }
+
+  function supplierNameReferenced(st, name) {
+    const t = String(name || "").trim();
+    if (!t) return false;
+    return st.purchases.some((p) => String(p.supplier || "").trim() === t);
+  }
+
+  function renameProductNameEverywhere(st, oldName, newName) {
+    const o = productKey(oldName);
+    const n = productKey(newName);
+    if (!o || !n || o === n) return;
+    st.purchases.forEach((p) => {
+      if (productKey(p.product) === o) p.product = n;
+    });
+    st.sales.forEach((s) => {
+      if (productKey(s.product) === o) s.product = n;
+    });
+    st.adjustments.forEach((a) => {
+      if (productKey(a.product) === o) a.product = n;
+    });
+    st.transfers.forEach((t) => {
+      if (productKey(t.product) === o) t.product = n;
+    });
+  }
+
+  function renameCustomerNameEverywhere(st, oldName, newName) {
+    const o = String(oldName || "").trim();
+    const n = String(newName || "").trim();
+    if (!o || !n || o === n) return;
+    st.sales.forEach((s) => {
+      if (String(s.customerName || "").trim() === o) s.customerName = n;
+    });
+    st.receipts.forEach((r) => {
+      if (String(r.customerName || "").trim() === o) r.customerName = n;
+    });
+  }
+
+  function renameSupplierNameEverywhere(st, oldName, newName) {
+    const o = String(oldName || "").trim();
+    const n = String(newName || "").trim();
+    if (!o || !n || o === n) return;
+    st.purchases.forEach((p) => {
+      if (String(p.supplier || "").trim() === o) p.supplier = n;
+    });
+  }
+
+  function reassignUnitIdEverywhere(st, fromId, toId) {
+    if (!fromId || !toId || fromId === toId) return;
+    st.purchases.forEach((p) => {
+      if (p.unitId === fromId) p.unitId = toId;
+    });
+    st.sales.forEach((s) => {
+      if (s.unitId === fromId) s.unitId = toId;
+    });
+    st.adjustments.forEach((a) => {
+      if (a.unitId === fromId) a.unitId = toId;
+    });
+    st.transfers.forEach((t) => {
+      if (t.unitId === fromId) t.unitId = toId;
+    });
   }
 
   function whName(state, id) {
@@ -555,8 +708,20 @@
       state.warehouses.map((w) => ({ 记录ID: w.id, 名称: w.name }))
     );
     appendSheet(
-      "分类",
-      state.categories.map((c) => ({ 记录ID: c.id, 名称: c.name }))
+      "单位",
+      (state.units || []).map((u) => ({ 记录ID: u.id, 名称: u.name }))
+    );
+    appendSheet(
+      "商品档案",
+      (state.productDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name }))
+    );
+    appendSheet(
+      "客户档案",
+      (state.customerDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name }))
+    );
+    appendSheet(
+      "供应商档案",
+      (state.supplierDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name }))
     );
     appendSheet(
       "进货",
@@ -567,8 +732,7 @@
           仓库: whName(state, p.warehouseId),
           供应商: p.supplier || "",
           商品: p.product || "",
-          分类: catName(state, p.categoryId),
-          数量: num(p.qty),
+          数量: formatQtyCell(p.qty, state, p.unitId),
           单价: num(p.price),
           小计: +(num(p.qty) * num(p.price)).toFixed(2),
           记录ID: p.id,
@@ -585,10 +749,9 @@
             日期: s.date,
             仓库: whName(state, s.warehouseId),
             商品: s.product || "",
-            分类: catName(state, s.categoryId),
             付款方式: pay,
             客户: s.customerName || "",
-            数量: num(s.qty),
+            数量: formatQtyCell(s.qty, state, s.unitId),
             售价: num(s.price),
             销售成本: num(s.costAtSale),
             小计: num(s.amount),
@@ -620,7 +783,7 @@
         .map((t) => ({
           日期: t.date,
           商品: t.product || "",
-          数量: num(t.qty),
+          数量: formatQtyCell(t.qty, state, t.unitId),
           从仓库: whName(state, t.fromWarehouseId),
           到仓库: whName(state, t.toWarehouseId),
           备注: t.note || "",
@@ -635,7 +798,7 @@
           日期: a.date,
           仓库: whName(state, a.warehouseId),
           商品: a.product || "",
-          数量: num(a.qty),
+          数量: formatQtyCell(a.qty, state, a.unitId),
           原因: a.reason || "",
           记录ID: a.id,
         }))
@@ -722,19 +885,525 @@
     return iso.slice(0, 7);
   }
 
-  function filterRows(state, start, end, warehouseId, categoryId) {
+  function quarterKey(iso) {
+    const d = new Date(iso + "T12:00:00");
+    const q = Math.floor(d.getMonth() / 3) + 1;
+    return d.getFullYear() + "-Q" + q;
+  }
+
+  function yearKey(iso) {
+    return String(iso).slice(0, 4);
+  }
+
+  function defaultCategoryId(state) {
+    return state.categories[0].id;
+  }
+
+  function defNameList(arr) {
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((x) => String(x.name || "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "zh-CN"));
+  }
+
+  function unitName(st, unitId) {
+    const id = unitId || (st.units[0] && st.units[0].id);
+    const u = (st.units || []).find((x) => x.id === id);
+    return u ? u.name : "—";
+  }
+
+  function formatQtyCell(q, st, unitId) {
+    return num(q).toFixed(2) + " " + unitName(st, unitId);
+  }
+
+  function collectSuppliers(state) {
+    const set = new Set();
+    state.purchases.forEach((p) => {
+      const t = String(p.supplier || "").trim();
+      if (t) set.add(t);
+    });
+    return Array.from(set).sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
+  }
+
+  function mergedProducts(state) {
+    const set = new Set([...defNameList(state.productDefs), ...collectProducts(state)]);
+    return Array.from(set)
+      .filter(Boolean)
+      .sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
+  }
+
+  function mergedCustomers(state) {
+    const set = new Set([...defNameList(state.customerDefs), ...collectCustomers(state)]);
+    return Array.from(set)
+      .filter(Boolean)
+      .sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
+  }
+
+  function mergedSuppliers(state) {
+    const set = new Set([...defNameList(state.supplierDefs), ...collectSuppliers(state)]);
+    return Array.from(set)
+      .filter(Boolean)
+      .sort((a, b) => String(a).localeCompare(String(b), "zh-CN"));
+  }
+
+  function refreshFilteredDatalist(dl, sortedAll, needle) {
+    if (!dl) return;
+    const n = String(needle || "").trim().toLowerCase();
+    let list = sortedAll;
+    if (n) list = sortedAll.filter((v) => String(v).toLowerCase().includes(n));
+    const cap = n ? 80 : 200;
+    if (list.length > cap) list = list.slice(0, cap);
+    fillDatalist(dl, list);
+  }
+
+  function bindSuggestDelegation() {
+    function upd(e) {
+      const t = e.target;
+      if (!t || t.tagName !== "INPUT") return;
+      const lid = t.getAttribute("list");
+      if (!lid) return;
+      const dl = document.getElementById(lid);
+      if (!dl) return;
+      if (lid === "productList") refreshFilteredDatalist(dl, mergedProducts(state), t.value);
+      else if (lid === "customerList") refreshFilteredDatalist(dl, mergedCustomers(state), t.value);
+      else if (lid === "supplierList") refreshFilteredDatalist(dl, mergedSuppliers(state), t.value);
+    }
+    document.addEventListener("focusin", upd);
+    document.addEventListener("input", upd);
+  }
+  function filterRows(state, start, end, warehouseId) {
     const wh = warehouseId || "";
-    const cat = categoryId || "";
     const ok = (row) => {
       if (!inRange(row.date, start, end)) return false;
       if (wh && row.warehouseId !== wh) return false;
-      if (cat && row.categoryId !== cat) return false;
       return true;
     };
     return {
       purchases: state.purchases.filter(ok),
       sales: state.sales.filter(ok),
     };
+  }
+
+  function confirmTypedPhrase(preConfirmText, requiredExact) {
+    if (!confirm(preConfirmText)) return false;
+    const t = prompt('请输入「' + requiredExact + '」须与提示完全一致（含空格）。\n点取消即放弃。');
+    return t != null && String(t).trim() === requiredExact;
+  }
+
+  function latestUnitIdForProduct(st, productName) {
+    const k = productKey(productName);
+    if (!k) return null;
+    const cand = [];
+    function push(date, unitId) {
+      const u = unitId || defaultUnitId(st);
+      if (u) cand.push({ date: String(date || ""), unitId: u });
+    }
+    st.purchases.forEach((p) => {
+      if (productKey(p.product) === k) push(p.date, p.unitId);
+    });
+    st.sales.forEach((s) => {
+      if (productKey(s.product) === k) push(s.date, s.unitId);
+    });
+    st.adjustments.forEach((a) => {
+      if (productKey(a.product) === k) push(a.date, a.unitId);
+    });
+    st.transfers.forEach((t) => {
+      if (productKey(t.product) === k) push(t.date, t.unitId);
+    });
+    cand.sort((a, b) => -cmpDate(a.date, b.date));
+    return cand.length ? cand[0].unitId : null;
+  }
+
+  function setSelectUnitIfValid(selectEl, unitId) {
+    if (!selectEl || !unitId) return;
+    if ([...selectEl.options].some((o) => o.value === unitId)) selectEl.value = unitId;
+  }
+
+  function filteredPurchaseRows(st, qLower) {
+    return st.purchases
+      .filter((p) => {
+        if (qLower && !String(p.product).toLowerCase().includes(qLower)) return false;
+        return true;
+      })
+      .sort((a, b) => -cmpDate(a.date, b.date));
+  }
+
+  function filteredSalesRows(st, qLower) {
+    return st.sales
+      .filter((s) => {
+        if (qLower && !String(s.product).toLowerCase().includes(qLower)) return false;
+        return true;
+      })
+      .sort((a, b) => -cmpDate(a.date, b.date));
+  }
+
+  function paginateRows(rows, pageIndex, pageSize) {
+    const total = rows.length;
+    const pages = Math.max(1, Math.ceil(total / pageSize) || 1);
+    const page = Math.min(Math.max(1, pageIndex), pages);
+    const slice = rows.slice((page - 1) * pageSize, page * pageSize);
+    return { page, pages, total, slice };
+  }
+
+  function writeWorkbookToFile(wb, filenameBase) {
+    const XLSX = typeof window !== "undefined" ? window.XLSX : undefined;
+    if (!XLSX || !XLSX.utils || !XLSX.writeFile) {
+      alert("Excel 组件未加载，请确认网络正常后刷新页面再试。");
+      return;
+    }
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+    XLSX.writeFile(wb, filenameBase + "_" + stamp + ".xlsx");
+  }
+
+  function bookAppendJsonSheets(XLSX, wb, pairs) {
+    pairs.forEach(({ name, rows }) => {
+      const sheetName = String(name).slice(0, 31);
+      let ws;
+      if (!rows || !rows.length) ws = XLSX.utils.aoa_to_sheet([["（暂无数据）"]]);
+      else ws = XLSX.utils.json_to_sheet(rows);
+      XLSX.utils.book_append_sheet(wb, ws, sheetName);
+    });
+  }
+
+  function exportModuleWorkbook(mod) {
+    const XLSX = typeof window !== "undefined" ? window.XLSX : undefined;
+    if (!XLSX || !XLSX.utils || !XLSX.writeFile) {
+      alert("Excel 组件未加载，请确认网络正常后刷新页面再试。");
+      return;
+    }
+    syncAllComputed(state);
+    const wb = XLSX.utils.book_new();
+    const nameBase = "玲鑫进销存_模块";
+
+    if (mod === "purchase") {
+      bookAppendJsonSheets(XLSX, wb, [
+        {
+          name: "进货",
+          rows: [...state.purchases]
+            .sort((a, b) => cmpDate(a.date, b.date))
+            .map((p) => ({
+              日期: p.date,
+              仓库: whName(state, p.warehouseId),
+              供应商: p.supplier || "",
+              商品: p.product || "",
+              单位: unitName(state, p.unitId),
+              数量数值: num(p.qty),
+              数量显示: formatQtyCell(p.qty, state, p.unitId),
+              单价: num(p.price),
+              小计: +(num(p.qty) * num(p.price)).toFixed(2),
+              记录ID: p.id,
+            })),
+        },
+      ]);
+      writeWorkbookToFile(wb, nameBase + "_进货管理");
+      return;
+    }
+    if (mod === "sales") {
+      bookAppendJsonSheets(XLSX, wb, [
+        {
+          name: "销售",
+          rows: [...state.sales]
+            .sort((a, b) => cmpDate(a.date, b.date))
+            .map((s) => {
+              const rem = creditRemaining(s);
+              const pay = s.paymentType === "credit" ? "赊账" : "现款";
+              return {
+                日期: s.date,
+                仓库: whName(state, s.warehouseId),
+                商品: s.product || "",
+                单位: unitName(state, s.unitId),
+                数量数值: num(s.qty),
+                数量显示: formatQtyCell(s.qty, state, s.unitId),
+                付款方式: pay,
+                客户: s.customerName || "",
+                售价: num(s.price),
+                销售成本: num(s.costAtSale),
+                小计: num(s.amount),
+                当场已收: Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))),
+                赊欠余额: rem > 0.0001 ? +rem.toFixed(2) : 0,
+                收款核销: num(s.arReceiptAllocated),
+                手动结清: num(s.arManualPaid),
+                买方: s.buyer || "",
+                记录ID: s.id,
+              };
+            }),
+        },
+      ]);
+      writeWorkbookToFile(wb, nameBase + "_销售管理");
+      return;
+    }
+    if (mod === "receivables") {
+      const balMap = arCustomerBalances(state);
+      const summaryRows = Array.from(balMap.entries()).map(([客户, 应收余额]) => ({ 客户, 应收余额 }));
+      const creditRows = [];
+      state.sales.forEach((s) => {
+        if (creditRemaining(s) <= 0.001) return;
+        const rem = creditRemaining(s);
+        creditRows.push({
+          日期: s.date,
+          客户: String(s.customerName || "").trim() || "（未填写客户）",
+          商品: s.product || "",
+          小计: num(s.amount),
+          当场已收: num(s.paidAtSale),
+          收款核销: num(s.arReceiptAllocated),
+          剩余欠款: rem,
+          记录ID: s.id,
+        });
+      });
+      creditRows.sort((a, b) => cmpDate(a.date, b.date));
+      const paidRows = [];
+      state.sales.forEach((s) => {
+        if (
+          !(
+            creditRemaining(s) <= 0.001 &&
+            (num(s.arReceiptAllocated) > 0 || num(s.arManualPaid) > 0 || num(s.paidAtSale) < num(s.amount))
+          )
+        )
+          return;
+        const manual = Math.max(0, num(s.arManualPaid));
+        const paidTotal = Math.min(
+          num(s.amount),
+          Math.max(0, num(s.paidAtSale)) + Math.max(0, num(s.arReceiptAllocated)) + manual
+        );
+        paidRows.push({
+          日期: s.date,
+          客户: String(s.customerName || "").trim() || "（未填写客户）",
+          商品: s.product || "",
+          小计: num(s.amount),
+          当场已收: num(s.paidAtSale),
+          收款核销: num(s.arReceiptAllocated),
+          手动结清: manual,
+          已收合计: paidTotal,
+          记录ID: s.id,
+        });
+      });
+      paidRows.sort((a, b) => -cmpDate(a.date, b.date));
+      const receiptRows = [...state.receipts]
+        .sort((a, b) => -cmpDate(a.date, b.date))
+        .map((r) => ({
+          日期: r.date,
+          客户: r.customerName || "",
+          金额: num(r.amount),
+          备注: r.note || "",
+          记录ID: r.id,
+        }));
+      bookAppendJsonSheets(XLSX, wb, [
+        { name: "客户欠款汇总", rows: summaryRows },
+        { name: "赊销未结清", rows: creditRows },
+        { name: "已结清赊销", rows: paidRows },
+        { name: "收款记录", rows: receiptRows },
+      ]);
+      writeWorkbookToFile(wb, nameBase + "_应收账款");
+      return;
+    }
+    if (mod === "inventory") {
+      const { inv } = buildLedger(state);
+      const invRows = [];
+      Array.from(inv.keys())
+        .sort()
+        .forEach((k) => {
+          const [whId, prod] = k.split("|||");
+          const c = inv.get(k);
+          if (num(c.qty) < 0.0001 && num(c.totalCost) < 0.0001) return;
+          invRows.push({
+            仓库: whName(state, whId),
+            商品: prod,
+            库存数量: formatQtyCell(c.qty, state, state.units[0].id),
+            库存数量值: num(c.qty),
+            库存均价: avgUnit(c),
+            库存成本: num(c.totalCost),
+          });
+        });
+      bookAppendJsonSheets(XLSX, wb, [
+        { name: "当前库存", rows: invRows },
+        {
+          name: "调拨",
+          rows: [...state.transfers]
+            .sort((a, b) => -cmpDate(a.date, b.date))
+            .map((t) => ({
+              日期: t.date,
+              商品: t.product || "",
+              数量: formatQtyCell(t.qty, state, t.unitId),
+              从仓库: whName(state, t.fromWarehouseId),
+              到仓库: whName(state, t.toWarehouseId),
+              备注: t.note || "",
+              记录ID: t.id,
+            })),
+        },
+        {
+          name: "库存调整",
+          rows: [...state.adjustments]
+            .sort((a, b) => -cmpDate(a.date, b.date))
+            .map((a) => ({
+              日期: a.date,
+              仓库: whName(state, a.warehouseId),
+              商品: a.product || "",
+              调整数量: formatQtyCell(a.qty, state, a.unitId),
+              原因: a.reason || "",
+              记录ID: a.id,
+            })),
+        },
+      ]);
+      writeWorkbookToFile(wb, nameBase + "_库存管理");
+      return;
+    }
+    if (mod === "basics") {
+      bookAppendJsonSheets(XLSX, wb, [
+        { name: "仓库", rows: state.warehouses.map((w) => ({ 记录ID: w.id, 名称: w.name })) },
+        { name: "单位", rows: (state.units || []).map((u) => ({ 记录ID: u.id, 名称: u.name })) },
+        { name: "商品档案", rows: (state.productDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name })) },
+        { name: "客户档案", rows: (state.customerDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name })) },
+        { name: "供应商档案", rows: (state.supplierDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name })) },
+      ]);
+      writeWorkbookToFile(wb, nameBase + "_基础设置");
+      return;
+    }
+    if (mod === "analytics") {
+      const start = els.fStart && els.fStart.value ? els.fStart.value : "";
+      const end = els.fEnd && els.fEnd.value ? els.fEnd.value : "";
+      const wh = els.fWarehouse && els.fWarehouse.value ? els.fWarehouse.value : "";
+      const { purchases: fp, sales: fs } = filterRows(state, start, end, wh);
+      const groupMode = (els.fGroup && els.fGroup.value) || "day";
+      const map = new Map();
+      function keyFor(date) {
+        if (groupMode === "week") return weekKey(date);
+        if (groupMode === "month") return monthKey(date);
+        if (groupMode === "quarter") return quarterKey(date);
+        if (groupMode === "year") return yearKey(date);
+        return date;
+      }
+      fs.forEach((s) => {
+        const k = keyFor(s.date);
+        const o = map.get(k) || { revenue: 0, cogs: 0 };
+        o.revenue += num(s.amount);
+        o.cogs += num(s.costAtSale);
+        map.set(k, o);
+      });
+      fp.forEach((p) => {
+        const k = keyFor(p.date);
+        const o = map.get(k) || { revenue: 0, cogs: 0, expense: 0 };
+        o.expense = (o.expense || 0) + num(p.qty) * num(p.price);
+        map.set(k, o);
+      });
+      const periodRows = Array.from(map.keys())
+        .sort()
+        .map((k) => {
+          const o = map.get(k);
+          const rev = num(o.revenue);
+          const cg = num(o.cogs);
+          const prof = rev - cg;
+          const mar = rev > 0 ? (100 * prof) / rev : 0;
+          return { 周期: k, 销售额: rev, 销售成本: cg, 利润: prof, 利润率: +mar.toFixed(2) + "%" };
+        });
+      const revenue = fs.reduce((a, s) => a + num(s.amount), 0);
+      const cogs = fs.reduce((a, s) => a + num(s.costAtSale), 0);
+      const profit = revenue - cogs;
+      const margin = revenue > 0 ? (100 * profit) / revenue : 0;
+      const prodMap = new Map();
+      fs.forEach((s) => {
+        const k = productKey(s.product);
+        if (!k) return;
+        const o = prodMap.get(k) || { product: s.product, qtySold: 0, revenue: 0, cogs: 0 };
+        o.qtySold += num(s.qty);
+        o.revenue += num(s.amount);
+        o.cogs += num(s.costAtSale);
+        prodMap.set(k, o);
+      });
+      fp.forEach((p) => {
+        const k = productKey(p.product);
+        if (!k) return;
+        const o = prodMap.get(k) || { product: p.product, qtyIn: 0, qtySold: 0, revenue: 0, cogs: 0 };
+        o.qtyIn = (o.qtyIn || 0) + num(p.qty);
+        prodMap.set(k, o);
+      });
+      const prodRows = Array.from(prodMap.values())
+        .sort((a, b) => b.revenue - a.revenue)
+        .map((o) => {
+          const prof = o.revenue - o.cogs;
+          const mar = o.revenue > 0 ? (100 * prof) / o.revenue : 0;
+          return {
+            商品: o.product,
+            进货量: formatQtyCell(o.qtyIn || 0, state, state.units[0].id),
+            销售量: formatQtyCell(o.qtySold, state, state.units[0].id),
+            销售额: o.revenue,
+            销售成本: o.cogs,
+            利润: prof,
+            利润率: mar.toFixed(2) + "%",
+          };
+        });
+      const bsRows = [];
+      const prodRank = new Map();
+      fs.forEach((s) => {
+        const k = productKey(s.product);
+        if (!k) return;
+        const o = prodRank.get(k) || { label: String(s.product || "").trim() || k, qty: 0, rev: 0 };
+        o.qty += num(s.qty);
+        o.rev += num(s.amount);
+        prodRank.set(k, o);
+      });
+      Array.from(prodRank.values())
+        .sort((a, b) => b.rev - a.rev || b.qty - a.qty)
+        .forEach((o, i) => {
+          bsRows.push({
+            名次: i + 1,
+            商品: o.label,
+            销售数量: formatQtyCell(o.qty, state, state.units[0].id),
+            销售额: o.rev,
+          });
+        });
+      bookAppendJsonSheets(XLSX, wb, [
+        {
+          name: "筛选说明",
+          rows: [
+            {
+              开始日期: start || "（不限）",
+              结束日期: end || "（不限）",
+              仓库: wh ? whName(state, wh) : "全部",
+              粒度: groupMode,
+              销售额合计: revenue,
+              销售成本合计: cogs,
+              利润合计: profit,
+              利润率: margin.toFixed(2) + "%",
+            },
+          ],
+        },
+        { name: "周期汇总", rows: periodRows },
+        {
+          name: "筛选进货",
+          rows: [...fp]
+            .sort((a, b) => cmpDate(a.date, b.date))
+            .map((p) => ({
+              日期: p.date,
+              仓库: whName(state, p.warehouseId),
+              供应商: p.supplier || "",
+              商品: p.product || "",
+              数量: formatQtyCell(p.qty, state, p.unitId),
+              单价: num(p.price),
+              记录ID: p.id,
+            })),
+        },
+        {
+          name: "筛选销售",
+          rows: [...fs]
+            .sort((a, b) => cmpDate(a.date, b.date))
+            .map((s) => ({
+              日期: s.date,
+              仓库: whName(state, s.warehouseId),
+              商品: s.product || "",
+              数量: formatQtyCell(s.qty, state, s.unitId),
+              小计: num(s.amount),
+              客户: s.customerName || "",
+              记录ID: s.id,
+            })),
+        },
+        { name: "商品销售统计", rows: prodRows },
+        { name: "畅销榜", rows: bsRows },
+      ]);
+      writeWorkbookToFile(wb, nameBase + "_统计分析");
+      return;
+    }
+    alert("无法识别导出模块，请刷新页面后重试。");
   }
 
   /** -------- DOM App -------- */
@@ -749,24 +1418,24 @@
     backupFileInput: document.getElementById("backupFileInput"),
     productList: document.getElementById("productList"),
     customerList: document.getElementById("customerList"),
+    supplierList: document.getElementById("supplierList"),
     tabBtns: document.querySelectorAll(".tab-btn"),
     panels: document.querySelectorAll(".panel"),
     pDate: document.getElementById("pDate"),
     pSupplier: document.getElementById("pSupplier"),
     pProduct: document.getElementById("pProduct"),
-    pCategory: document.getElementById("pCategory"),
     pWarehouse: document.getElementById("pWarehouse"),
     pQty: document.getElementById("pQty"),
+    pUnit: document.getElementById("pUnit"),
     pPrice: document.getElementById("pPrice"),
     purchaseForm: document.getElementById("purchaseForm"),
     purchaseSearch: document.getElementById("purchaseSearch"),
-    purchaseCategoryFilter: document.getElementById("purchaseCategoryFilter"),
     purchaseTbody: document.getElementById("purchaseTbody"),
     sDate: document.getElementById("sDate"),
     sProduct: document.getElementById("sProduct"),
-    sCategory: document.getElementById("sCategory"),
     sWarehouse: document.getElementById("sWarehouse"),
     sQty: document.getElementById("sQty"),
+    sUnit: document.getElementById("sUnit"),
     sPrice: document.getElementById("sPrice"),
     sPaymentType: document.getElementById("sPaymentType"),
     sCustomer: document.getElementById("sCustomer"),
@@ -774,7 +1443,6 @@
     sBuyer: document.getElementById("sBuyer"),
     salesForm: document.getElementById("salesForm"),
     salesSearch: document.getElementById("salesSearch"),
-    salesCategoryFilter: document.getElementById("salesCategoryFilter"),
     salesTbody: document.getElementById("salesTbody"),
     rcDate: document.getElementById("rcDate"),
     rcCustomer: document.getElementById("rcCustomer"),
@@ -790,11 +1458,13 @@
     aWarehouse: document.getElementById("aWarehouse"),
     aProduct: document.getElementById("aProduct"),
     aQty: document.getElementById("aQty"),
+    aUnit: document.getElementById("aUnit"),
     aReason: document.getElementById("aReason"),
     adjustForm: document.getElementById("adjustForm"),
     tDate: document.getElementById("tDate"),
     tProduct: document.getElementById("tProduct"),
     tQty: document.getElementById("tQty"),
+    tUnit: document.getElementById("tUnit"),
     tFrom: document.getElementById("tFrom"),
     tTo: document.getElementById("tTo"),
     tNote: document.getElementById("tNote"),
@@ -802,9 +1472,18 @@
     warehouseForm: document.getElementById("warehouseForm"),
     newWarehouse: document.getElementById("newWarehouse"),
     warehouseTbody: document.getElementById("warehouseTbody"),
-    categoryForm: document.getElementById("categoryForm"),
-    newCategory: document.getElementById("newCategory"),
-    categoryTbody: document.getElementById("categoryTbody"),
+    unitForm: document.getElementById("unitForm"),
+    newUnit: document.getElementById("newUnit"),
+    unitTbody: document.getElementById("unitTbody"),
+    productDefForm: document.getElementById("productDefForm"),
+    newProductDef: document.getElementById("newProductDef"),
+    productDefTbody: document.getElementById("productDefTbody"),
+    customerDefForm: document.getElementById("customerDefForm"),
+    newCustomerDef: document.getElementById("newCustomerDef"),
+    customerDefTbody: document.getElementById("customerDefTbody"),
+    supplierDefForm: document.getElementById("supplierDefForm"),
+    newSupplierDef: document.getElementById("newSupplierDef"),
+    supplierDefTbody: document.getElementById("supplierDefTbody"),
     invWarehouseFilter: document.getElementById("invWarehouseFilter"),
     inventoryTbody: document.getElementById("inventoryTbody"),
     transferTbody: document.getElementById("transferTbody"),
@@ -814,7 +1493,6 @@
     fEnd: document.getElementById("fEnd"),
     fWarehouse: document.getElementById("fWarehouse"),
     fGroup: document.getElementById("fGroup"),
-    fCategory: document.getElementById("fCategory"),
     resetFilterBtn: document.getElementById("resetFilterBtn"),
     exportMonthBtn: document.getElementById("exportMonthBtn"),
     sumRevenue: document.getElementById("sumRevenue"),
@@ -823,13 +1501,8 @@
     sumMargin: document.getElementById("sumMargin"),
     profitGroupTbody: document.getElementById("profitGroupTbody"),
     productStatsTbody: document.getElementById("productStatsTbody"),
-    categoryStatsTbody: document.getElementById("categoryStatsTbody"),
     trendChart: document.getElementById("trendChart"),
-    bsStart: document.getElementById("bsStart"),
-    bsEnd: document.getElementById("bsEnd"),
-    bestsellerForm: document.getElementById("bestsellerForm"),
     bestsellerProductTbody: document.getElementById("bestsellerProductTbody"),
-    bestsellerCategoryTbody: document.getElementById("bestsellerCategoryTbody"),
   };
 
   function setTheme(dark) {
@@ -890,6 +1563,13 @@
               const objectPath = `sync/${encodeURIComponent(code)}.json`;
               const cfg2 = { url, anonKey, bucket, code, objectPath };
               saveCloudConfig(cfg2);
+              if (
+                !confirmTypedPhrase(
+                  "即将用云端数据覆盖本机全部进销存（进货、销售、库存、应收、档案等），不可撤销。\n建议先关闭本弹窗，在顶部点「导出备份(JSON)」再操作。\n\n确定后请在下一步输入确认语。",
+                  "确认覆盖本机数据"
+                )
+              )
+                return;
               const pulled = await cloudPull(cfg2);
               if (!pulled) return alert("云端暂无数据（请先在另一台设备点「上传本机到云端」）");
               state = pulled;
@@ -939,44 +1619,42 @@
 
   function refreshSelectors() {
     const whs = state.warehouses;
-    const cats = state.categories;
     fillSelect(els.pWarehouse, whs, null);
     fillSelect(els.sWarehouse, whs, null);
     fillSelect(els.aWarehouse, whs, null);
     fillSelect(els.tFrom, whs, null);
     fillSelect(els.tTo, whs, null);
-    fillSelect(els.pCategory, cats, null);
-    fillSelect(els.sCategory, cats, null);
-    fillSelect(els.purchaseCategoryFilter, cats, "全部分类");
-    fillSelect(els.salesCategoryFilter, cats, "全部分类");
     fillSelect(els.invWarehouseFilter, whs, "全部仓库");
     fillSelect(els.fWarehouse, whs, "全部仓库");
-    fillSelect(els.fCategory, cats, "全部分类");
-    fillDatalist(els.productList, collectProducts(state));
-    fillDatalist(els.customerList, collectCustomers(state));
+    if (els.pUnit) fillSelect(els.pUnit, state.units, null);
+    if (els.sUnit) fillSelect(els.sUnit, state.units, null);
+    if (els.aUnit) fillSelect(els.aUnit, state.units, null);
+    if (els.tUnit) fillSelect(els.tUnit, state.units, null);
+    if (els.productList) refreshFilteredDatalist(els.productList, mergedProducts(state), "");
+    if (els.customerList) refreshFilteredDatalist(els.customerList, mergedCustomers(state), "");
+    if (els.supplierList) refreshFilteredDatalist(els.supplierList, mergedSuppliers(state), "");
   }
 
   function renderPurchases() {
     const q = els.purchaseSearch.value.trim().toLowerCase();
-    const cf = els.purchaseCategoryFilter.value;
-    const rows = state.purchases
-      .filter((p) => {
-        if (cf && p.categoryId !== cf) return false;
-        if (q && !String(p.product).toLowerCase().includes(q)) return false;
-        return true;
-      })
-      .sort((a, b) => -cmpDate(a.date, b.date));
+    const rows = filteredPurchaseRows(state, q);
+    const { page, pages, total, slice } = paginateRows(rows, purchaseListPage, LIST_PAGE_SIZE);
+    purchaseListPage = page;
+    const pageInfo = document.getElementById("purchasePageInfo");
+    if (pageInfo) pageInfo.textContent = total ? "第 " + page + "/" + pages + " 页，共 " + total + " 条" : "共 0 条";
+    const allIdSet = new Set(rows.map((r) => r.id));
     els.purchaseTbody.innerHTML = "";
-    rows.forEach((p) => {
+    slice.forEach((p) => {
       const tr = document.createElement("tr");
       const sub = num(p.qty) * num(p.price);
+      const checked = purchaseCheckedIds.has(p.id) ? " checked" : "";
       tr.innerHTML = `
+        <td data-label="选择"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600" data-pick-p="${escapeHtml(p.id)}"${checked} /></td>
         <td data-label="日期">${p.date}</td>
         <td data-label="仓库">${whName(state, p.warehouseId)}</td>
         <td data-label="供应商">${p.supplier || ""}</td>
         <td data-label="商品">${p.product || ""}</td>
-        <td data-label="分类">${catName(state, p.categoryId)}</td>
-        <td data-label="数量">${num(p.qty).toFixed(2)}</td>
+        <td data-label="数量">${formatQtyCell(p.qty, state, p.unitId)}</td>
         <td data-label="单价" class="lx-money">${money(p.price)}</td>
         <td data-label="小计" class="lx-money">${money(sub)}</td>
         <td data-label="操作" class="text-right">
@@ -984,6 +1662,15 @@
         </td>`;
       els.purchaseTbody.appendChild(tr);
     });
+    const sa = document.getElementById("purchaseSelectAll");
+    if (sa) {
+      let picked = 0;
+      allIdSet.forEach((id) => {
+        if (purchaseCheckedIds.has(id)) picked++;
+      });
+      sa.checked = picked > 0 && picked === allIdSet.size && allIdSet.size > 0;
+      sa.indeterminate = picked > 0 && picked < allIdSet.size;
+    }
     els.purchaseTbody.querySelectorAll("[data-edit-p]").forEach((b) => {
       b.addEventListener("click", () => {
         const id = b.getAttribute("data-edit-p");
@@ -992,10 +1679,10 @@
         const body = `
           <form class="form-grid" onsubmit="return false;">
             <div class="form-group"><label>日期</label><input type="date" id="m_date" value="${escapeHtml(p.date)}"></div>
-            <div class="form-group"><label>供应商</label><input type="text" id="m_supplier" value="${escapeHtml(p.supplier || "")}"></div>
-            <div class="form-group"><label>商品</label><input type="text" id="m_product" value="${escapeHtml(p.product || "")}"></div>
-            <div class="form-group"><label>分类</label><select id="m_category">${optionsHtml(state.categories, p.categoryId)}</select></div>
+            <div class="form-group"><label>供应商</label><input type="text" id="m_supplier" list="supplierList" autocomplete="off" value="${escapeHtml(p.supplier || "")}"></div>
+            <div class="form-group"><label>商品</label><input type="text" id="m_product" list="productList" autocomplete="off" value="${escapeHtml(p.product || "")}"></div>
             <div class="form-group"><label>入库仓库</label><select id="m_warehouse">${optionsHtml(state.warehouses, p.warehouseId)}</select></div>
+            <div class="form-group"><label>单位</label><select id="m_unit">${optionsHtml(state.units, p.unitId || defaultUnitId(state))}</select></div>
             <div class="form-group"><label>数量</label><input type="number" id="m_qty" step="0.01" value="${num(p.qty)}"></div>
             <div class="form-group"><label>单价</label><input type="number" id="m_price" step="0.01" value="${num(p.price)}"></div>
           </form>`;
@@ -1005,24 +1692,36 @@
             date: document.getElementById("m_date").value,
             supplier: document.getElementById("m_supplier").value.trim(),
             product: document.getElementById("m_product").value.trim(),
-            categoryId: document.getElementById("m_category").value,
+            categoryId: p.categoryId || defaultCategoryId(state),
             warehouseId: document.getElementById("m_warehouse").value,
+            unitId: document.getElementById("m_unit").value || defaultUnitId(state),
             qty: num(document.getElementById("m_qty").value),
             price: num(document.getElementById("m_price").value),
           };
           if (!next.product) return alert("请填写商品名称");
+          ensureMasterDef(state, "supplierDefs", next.supplier);
+          ensureMasterDef(state, "productDefs", next.product);
           state.purchases = state.purchases.map((x) => (x.id === id ? next : x));
           saveState(state);
           fullRender();
           return true;
+        });
+        queueMicrotask(() => {
+          const mp = document.getElementById("m_product");
+          const mu = document.getElementById("m_unit");
+          if (mp && mu) {
+            mp.addEventListener("input", () => setSelectUnitIfValid(mu, latestUnitIdForProduct(state, mp.value)));
+            setSelectUnitIfValid(mu, latestUnitIdForProduct(state, mp.value));
+          }
         });
       });
     });
     els.purchaseTbody.querySelectorAll("[data-del-p]").forEach((b) => {
       b.addEventListener("click", () => {
         const id = b.getAttribute("data-del-p");
-        if (!confirm("确定删除该进货？")) return;
+        if (!confirm("删除后无法恢复，并会改变库存与利润统计。\n确定删除这条进货？")) return;
         state.purchases = state.purchases.filter((x) => x.id !== id);
+        purchaseCheckedIds.delete(id);
         saveState(state);
         fullRender();
       });
@@ -1038,27 +1737,26 @@
   function renderSales() {
     syncAllComputed(state);
     const q = els.salesSearch.value.trim().toLowerCase();
-    const cf = els.salesCategoryFilter.value;
-    const rows = state.sales
-      .filter((s) => {
-        if (cf && s.categoryId !== cf) return false;
-        if (q && !String(s.product).toLowerCase().includes(q)) return false;
-        return true;
-      })
-      .sort((a, b) => -cmpDate(a.date, b.date));
+    const rows = filteredSalesRows(state, q);
+    const { page, pages, total, slice } = paginateRows(rows, salesListPage, LIST_PAGE_SIZE);
+    salesListPage = page;
+    const pageInfo = document.getElementById("salesPageInfo");
+    if (pageInfo) pageInfo.textContent = total ? "第 " + page + "/" + pages + " 页，共 " + total + " 条" : "共 0 条";
+    const allIdSet = new Set(rows.map((r) => r.id));
     els.salesTbody.innerHTML = "";
-    rows.forEach((s) => {
+    slice.forEach((s) => {
       const tr = document.createElement("tr");
       const rem = creditRemaining(s);
       const pay = s.paymentType === "credit" ? "赊账" : "现款";
+      const checked = salesCheckedIds.has(s.id) ? " checked" : "";
       tr.innerHTML = `
+        <td data-label="选择"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600" data-pick-s="${escapeHtml(s.id)}"${checked} /></td>
         <td data-label="日期">${s.date}</td>
         <td data-label="仓库">${whName(state, s.warehouseId)}</td>
         <td data-label="商品">${s.product || ""}</td>
-        <td data-label="分类">${catName(state, s.categoryId)}</td>
         <td data-label="付款">${pay}</td>
         <td data-label="客户">${s.customerName || ""}</td>
-        <td data-label="数量">${num(s.qty).toFixed(2)}</td>
+        <td data-label="数量">${formatQtyCell(s.qty, state, s.unitId)}</td>
         <td data-label="售价" class="lx-money">${money(s.price)}</td>
         <td data-label="成本" class="lx-money">${money(s.costAtSale)}</td>
         <td data-label="小计" class="lx-money">${money(s.amount)}</td>
@@ -1070,6 +1768,15 @@
         </td>`;
       els.salesTbody.appendChild(tr);
     });
+    const sa = document.getElementById("salesSelectAll");
+    if (sa) {
+      let picked = 0;
+      allIdSet.forEach((id) => {
+        if (salesCheckedIds.has(id)) picked++;
+      });
+      sa.checked = picked > 0 && picked === allIdSet.size && allIdSet.size > 0;
+      sa.indeterminate = picked > 0 && picked < allIdSet.size;
+    }
     els.salesTbody.querySelectorAll("[data-edit-s]").forEach((b) => {
       b.addEventListener("click", () => {
         const id = b.getAttribute("data-edit-s");
@@ -1078,12 +1785,12 @@
         const body = `
           <form class="form-grid" onsubmit="return false;">
             <div class="form-group"><label>日期</label><input type="date" id="m_date" value="${escapeHtml(s.date)}"></div>
-            <div class="form-group"><label>商品</label><input type="text" id="m_product" value="${escapeHtml(s.product || "")}"></div>
-            <div class="form-group"><label>分类</label><select id="m_category">${optionsHtml(state.categories, s.categoryId)}</select></div>
+            <div class="form-group"><label>商品</label><input type="text" id="m_product" list="productList" autocomplete="off" value="${escapeHtml(s.product || "")}"></div>
             <div class="form-group"><label>出库仓库</label><select id="m_warehouse">${optionsHtml(state.warehouses, s.warehouseId)}</select></div>
+            <div class="form-group"><label>单位</label><select id="m_unit">${optionsHtml(state.units, s.unitId || defaultUnitId(state))}</select></div>
             <div class="form-group"><label>数量</label><input type="number" id="m_qty" step="0.01" value="${num(s.qty)}"></div>
             <div class="form-group"><label>售价</label><input type="number" id="m_price" step="0.01" value="${num(s.price)}"></div>
-            <div class="form-group"><label>客户</label><input type="text" id="m_customer" value="${escapeHtml(s.customerName || "")}"></div>
+            <div class="form-group"><label>客户</label><input type="text" id="m_customer" list="customerList" autocomplete="off" value="${escapeHtml(s.customerName || "")}"></div>
             <div class="form-group"><label>当场已收</label><input type="number" id="m_paid" step="0.01" value="${num(s.paidAtSale)}"></div>
             <div class="form-group" style="grid-column:span 2"><label>买方</label><input type="text" id="m_buyer" value="${escapeHtml(s.buyer || "")}"></div>
           </form>`;
@@ -1092,8 +1799,9 @@
             ...s,
             date: document.getElementById("m_date").value,
             product: document.getElementById("m_product").value.trim(),
-            categoryId: document.getElementById("m_category").value,
+            categoryId: s.categoryId || defaultCategoryId(state),
             warehouseId: document.getElementById("m_warehouse").value,
+            unitId: document.getElementById("m_unit").value || defaultUnitId(state),
             qty: num(document.getElementById("m_qty").value),
             price: num(document.getElementById("m_price").value),
             customerName: document.getElementById("m_customer").value.trim(),
@@ -1101,6 +1809,8 @@
             buyer: document.getElementById("m_buyer").value.trim(),
           };
           if (!next.product) return alert("请填写商品名称");
+          ensureMasterDef(state, "productDefs", next.product);
+          if (next.customerName) ensureMasterDef(state, "customerDefs", next.customerName);
           next.amount = +(num(next.qty) * num(next.price)).toFixed(2);
           next.paidAtSale = Math.min(next.amount, next.paidAtSale);
 
@@ -1112,13 +1822,22 @@
           fullRender();
           return true;
         });
+        queueMicrotask(() => {
+          const mp = document.getElementById("m_product");
+          const mu = document.getElementById("m_unit");
+          if (mp && mu) {
+            mp.addEventListener("input", () => setSelectUnitIfValid(mu, latestUnitIdForProduct(state, mp.value)));
+            setSelectUnitIfValid(mu, latestUnitIdForProduct(state, mp.value));
+          }
+        });
       });
     });
     els.salesTbody.querySelectorAll("[data-del-s]").forEach((b) => {
       b.addEventListener("click", () => {
         const id = b.getAttribute("data-del-s");
-        if (!confirm("确定删除该销售？")) return;
+        if (!confirm("删除后无法恢复，并会改变库存、应收与利润统计。\n确定删除这条销售？")) return;
         state.sales = state.sales.filter((x) => x.id !== id);
+        salesCheckedIds.delete(id);
         saveState(state);
         fullRender();
       });
@@ -1279,6 +1998,176 @@
     });
   }
 
+  function renderMasterDataTables() {
+    if (!els.unitTbody || !els.productDefTbody || !els.customerDefTbody || !els.supplierDefTbody) return;
+
+    els.unitTbody.innerHTML = "";
+    (state.units || []).forEach((u) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td data-label="单位名">${escapeHtml(u.name)}</td>
+        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-un-rename="${escapeHtml(u.id)}" placeholder="新名称" /></td>
+        <td data-label="操作" class="text-right">
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" class="lx-btn-secondary text-xs" data-un-apply="${escapeHtml(u.id)}">保存名称</button>
+            ${lxIconDel(`data-un-del="${u.id}"`)}
+          </div>
+        </td>`;
+      els.unitTbody.appendChild(tr);
+    });
+    els.unitTbody.querySelectorAll("[data-un-apply]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-un-apply");
+        const inp = els.unitTbody.querySelector('[data-un-rename="' + id + '"]');
+        const name = String(inp.value || "").trim();
+        if (!name) return alert("名称不能为空");
+        if (state.units.some((x) => x.id !== id && String(x.name || "").trim() === name)) return alert("单位名称已存在");
+        state.units = state.units.map((x) => (x.id === id ? { ...x, name } : x));
+        saveState(state);
+        fullRender();
+      });
+    });
+    els.unitTbody.querySelectorAll("[data-un-del]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-un-del");
+        if (state.units.length <= 1) return alert("至少保留一个单位");
+        const rest = state.units.filter((x) => x.id !== id);
+        const fallback = rest[0].id;
+        if (!confirm("确定删除该单位？已选此单位的单据将改用「" + unitName(state, fallback) + "」。")) return;
+        reassignUnitIdEverywhere(state, id, fallback);
+        state.units = rest;
+        saveState(state);
+        fullRender();
+      });
+    });
+
+    els.productDefTbody.innerHTML = "";
+    (state.productDefs || []).forEach((it) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td data-label="商品名">${escapeHtml(it.name)}</td>
+        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-pd-rename="${escapeHtml(it.id)}" placeholder="新名称" /></td>
+        <td data-label="操作" class="text-right">
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" class="lx-btn-secondary text-xs" data-pd-apply="${escapeHtml(it.id)}">保存名称</button>
+            ${lxIconDel(`data-pd-del="${it.id}"`)}
+          </div>
+        </td>`;
+      els.productDefTbody.appendChild(tr);
+    });
+    els.productDefTbody.querySelectorAll("[data-pd-apply]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-pd-apply");
+        const inp = els.productDefTbody.querySelector('[data-pd-rename="' + id + '"]');
+        const newName = String(inp.value || "").trim();
+        if (!newName) return alert("名称不能为空");
+        if (defNameTaken(state, "productDefs", newName, id)) return alert("名称已存在");
+        const cur = state.productDefs.find((x) => x.id === id);
+        if (!cur) return;
+        renameProductNameEverywhere(state, cur.name, newName);
+        state.productDefs = state.productDefs.map((x) => (x.id === id ? { ...x, name: newName } : x));
+        saveState(state);
+        fullRender();
+      });
+    });
+    els.productDefTbody.querySelectorAll("[data-pd-del]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-pd-del");
+        const cur = state.productDefs.find((x) => x.id === id);
+        if (!cur) return;
+        if (productNameReferenced(state, cur.name)) return alert("该商品在单据中仍有使用，无法删除。");
+        if (!confirm("确定从档案中删除该商品？")) return;
+        state.productDefs = state.productDefs.filter((x) => x.id !== id);
+        saveState(state);
+        fullRender();
+      });
+    });
+
+    els.customerDefTbody.innerHTML = "";
+    (state.customerDefs || []).forEach((it) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td data-label="客户名">${escapeHtml(it.name)}</td>
+        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-cd-rename="${escapeHtml(it.id)}" placeholder="新名称" /></td>
+        <td data-label="操作" class="text-right">
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" class="lx-btn-secondary text-xs" data-cd-apply="${escapeHtml(it.id)}">保存名称</button>
+            ${lxIconDel(`data-cd-del="${it.id}"`)}
+          </div>
+        </td>`;
+      els.customerDefTbody.appendChild(tr);
+    });
+    els.customerDefTbody.querySelectorAll("[data-cd-apply]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-cd-apply");
+        const inp = els.customerDefTbody.querySelector('[data-cd-rename="' + id + '"]');
+        const newName = String(inp.value || "").trim();
+        if (!newName) return alert("名称不能为空");
+        if (defNameTaken(state, "customerDefs", newName, id)) return alert("名称已存在");
+        const cur = state.customerDefs.find((x) => x.id === id);
+        if (!cur) return;
+        renameCustomerNameEverywhere(state, cur.name, newName);
+        state.customerDefs = state.customerDefs.map((x) => (x.id === id ? { ...x, name: newName } : x));
+        saveState(state);
+        fullRender();
+      });
+    });
+    els.customerDefTbody.querySelectorAll("[data-cd-del]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-cd-del");
+        const cur = state.customerDefs.find((x) => x.id === id);
+        if (!cur) return;
+        if (customerNameReferenced(state, cur.name)) return alert("该客户在单据中仍有使用，无法删除。");
+        if (!confirm("确定从档案中删除该客户？")) return;
+        state.customerDefs = state.customerDefs.filter((x) => x.id !== id);
+        saveState(state);
+        fullRender();
+      });
+    });
+
+    els.supplierDefTbody.innerHTML = "";
+    (state.supplierDefs || []).forEach((it) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td data-label="供应商名">${escapeHtml(it.name)}</td>
+        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-sd-rename="${escapeHtml(it.id)}" placeholder="新名称" /></td>
+        <td data-label="操作" class="text-right">
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" class="lx-btn-secondary text-xs" data-sd-apply="${escapeHtml(it.id)}">保存名称</button>
+            ${lxIconDel(`data-sd-del="${it.id}"`)}
+          </div>
+        </td>`;
+      els.supplierDefTbody.appendChild(tr);
+    });
+    els.supplierDefTbody.querySelectorAll("[data-sd-apply]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-sd-apply");
+        const inp = els.supplierDefTbody.querySelector('[data-sd-rename="' + id + '"]');
+        const newName = String(inp.value || "").trim();
+        if (!newName) return alert("名称不能为空");
+        if (defNameTaken(state, "supplierDefs", newName, id)) return alert("名称已存在");
+        const cur = state.supplierDefs.find((x) => x.id === id);
+        if (!cur) return;
+        renameSupplierNameEverywhere(state, cur.name, newName);
+        state.supplierDefs = state.supplierDefs.map((x) => (x.id === id ? { ...x, name: newName } : x));
+        saveState(state);
+        fullRender();
+      });
+    });
+    els.supplierDefTbody.querySelectorAll("[data-sd-del]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-sd-del");
+        const cur = state.supplierDefs.find((x) => x.id === id);
+        if (!cur) return;
+        if (supplierNameReferenced(state, cur.name)) return alert("该供应商在单据中仍有使用，无法删除。");
+        if (!confirm("确定从档案中删除该供应商？")) return;
+        state.supplierDefs = state.supplierDefs.filter((x) => x.id !== id);
+        saveState(state);
+        fullRender();
+      });
+    });
+  }
+
   function renderInventory() {
     syncAllComputed(state);
     const { inv } = buildLedger(state);
@@ -1290,14 +2179,12 @@
       if (whF && whId !== whF) return;
       const c = inv.get(k);
       if (num(c.qty) < 0.0001 && num(c.totalCost) < 0.0001) return;
-      const catId = state.purchases.concat(state.sales).find((r) => productKey(r.product) === prod)?.categoryId;
       const tr = document.createElement("tr");
       const avg = avgUnit(c);
       tr.innerHTML = `
         <td data-label="仓库">${whName(state, whId)}</td>
         <td data-label="商品">${prod}</td>
-        <td data-label="分类">${catId ? catName(state, catId) : "—"}</td>
-        <td data-label="库存数量">${num(c.qty).toFixed(2)}</td>
+        <td data-label="库存数量">${formatQtyCell(c.qty, state, state.units[0].id)}</td>
         <td data-label="库存均价" class="lx-money">${money(avg)}</td>
         <td data-label="库存成本" class="lx-money">${money(c.totalCost)}</td>`;
       els.inventoryTbody.appendChild(tr);
@@ -1311,7 +2198,7 @@
         tr.innerHTML = `
           <td data-label="日期">${t.date}</td>
           <td data-label="商品">${t.product}</td>
-          <td data-label="数量">${num(t.qty).toFixed(2)}</td>
+          <td data-label="数量">${formatQtyCell(t.qty, state, t.unitId)}</td>
           <td data-label="从">${whName(state, t.fromWarehouseId)}</td>
           <td data-label="到">${whName(state, t.toWarehouseId)}</td>
           <td data-label="备注">${t.note || ""}</td>
@@ -1337,7 +2224,7 @@
           <td data-label="日期">${a.date}</td>
           <td data-label="仓库">${whName(state, a.warehouseId)}</td>
           <td data-label="商品">${a.product}</td>
-          <td data-label="调整数量">${num(a.qty).toFixed(2)}</td>
+          <td data-label="调整数量">${formatQtyCell(a.qty, state, a.unitId)}</td>
           <td data-label="原因">${a.reason || ""}</td>
           <td data-label="操作" class="text-right">${lxIconDel(`data-del-a="${a.id}"`)}</td>`;
         els.adjustTbody.appendChild(tr);
@@ -1393,53 +2280,7 @@
         fullRender();
       });
     });
-
-    els.categoryTbody.innerHTML = "";
-    state.categories.forEach((c) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td data-label="分类名">${c.name}</td>
-        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-cat-rename="${c.id}" placeholder="新名称" /></td>
-        <td data-label="操作" class="text-right">
-          <div class="flex flex-wrap justify-end gap-2">
-            <button type="button" class="lx-btn-secondary text-xs" data-cat-apply="${c.id}">保存名称</button>
-            ${lxIconDel(`data-cat-del="${c.id}"`)}
-          </div>
-        </td>`;
-      els.categoryTbody.appendChild(tr);
-    });
-    els.categoryTbody.querySelectorAll("[data-cat-apply]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const id = b.getAttribute("data-cat-apply");
-        const inp = els.categoryTbody.querySelector('[data-cat-rename="' + id + '"]');
-        const name = String(inp.value || "").trim();
-        if (!name) return alert("名称不能为空");
-        state.categories = state.categories.map((x) => (x.id === id ? { ...x, name } : x));
-        saveState(state);
-        fullRender();
-      });
-    });
-    els.categoryTbody.querySelectorAll("[data-cat-del]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const id = b.getAttribute("data-cat-del");
-        if (state.categories.length <= 1) return alert("至少保留一个分类");
-        const def = state.categories.find((x) => x.id !== id).id;
-        const used = state.purchases.some((x) => x.categoryId === id) || state.sales.some((x) => x.categoryId === id);
-        if (
-          !confirm(
-            used
-              ? "该分类仍在单据中使用，删除将把相关单据分类改为其他分类，确定？"
-              : "确定删除该分类？"
-          )
-        )
-          return;
-        state.purchases = state.purchases.map((p) => (p.categoryId === id ? { ...p, categoryId: def } : p));
-        state.sales = state.sales.map((s) => (s.categoryId === id ? { ...s, categoryId: def } : s));
-        state.categories = state.categories.filter((x) => x.id !== id);
-        saveState(state);
-        fullRender();
-      });
-    });
+    renderMasterDataTables();
   }
 
   function renderAnalytics() {
@@ -1447,8 +2288,7 @@
     const start = els.fStart.value || "";
     const end = els.fEnd.value || "";
     const wh = els.fWarehouse.value || "";
-    const cat = els.fCategory.value || "";
-    const { purchases: fp, sales: fs } = filterRows(state, start, end, wh, cat);
+    const { purchases: fp, sales: fs } = filterRows(state, start, end, wh);
 
     const revenue = fs.reduce((a, s) => a + num(s.amount), 0);
     const cogs = fs.reduce((a, s) => a + num(s.costAtSale), 0);
@@ -1464,6 +2304,8 @@
     function keyFor(date) {
       if (groupMode === "week") return weekKey(date);
       if (groupMode === "month") return monthKey(date);
+      if (groupMode === "quarter") return quarterKey(date);
+      if (groupMode === "year") return yearKey(date);
       return date;
     }
     fs.forEach((s) => {
@@ -1495,36 +2337,25 @@
       els.profitGroupTbody.appendChild(tr);
     });
 
-    const byDay = new Map();
-    fs.forEach((s) => {
-      const o = byDay.get(s.date) || { revenue: 0, cogs: 0 };
-      o.revenue += num(s.amount);
-      o.cogs += num(s.costAtSale);
-      byDay.set(s.date, o);
-    });
-    fp.forEach((p) => {
-      const o = byDay.get(p.date) || { revenue: 0, cogs: 0, expense: 0 };
-      o.expense = (o.expense || 0) + num(p.qty) * num(p.price);
-      byDay.set(p.date, o);
-    });
-    const dayKeys = Array.from(byDay.keys()).sort();
-    const revA = dayKeys.map((d) => num(byDay.get(d).revenue));
-    const expA = dayKeys.map((d) => num(byDay.get(d).expense || 0));
-    const profA = dayKeys.map((d) => num(byDay.get(d).revenue) - num(byDay.get(d).cogs));
-    drawTrendChart(els.trendChart, dayKeys, revA, expA, profA);
+    const revA = keys.map((k) => num(map.get(k).revenue));
+    const expA = keys.map((k) => num(map.get(k).expense || 0));
+    const profA = keys.map((k) => num(map.get(k).revenue) - num(map.get(k).cogs));
+    drawTrendChart(els.trendChart, keys, revA, expA, profA);
 
     const prodMap = new Map();
     fs.forEach((s) => {
-      const k = productKey(s.product) + "@@@" + s.categoryId;
-      const o = prodMap.get(k) || { product: s.product, categoryId: s.categoryId, qtySold: 0, revenue: 0, cogs: 0 };
+      const k = productKey(s.product);
+      if (!k) return;
+      const o = prodMap.get(k) || { product: s.product, qtySold: 0, revenue: 0, cogs: 0 };
       o.qtySold += num(s.qty);
       o.revenue += num(s.amount);
       o.cogs += num(s.costAtSale);
       prodMap.set(k, o);
     });
     fp.forEach((p) => {
-      const k = productKey(p.product) + "@@@" + p.categoryId;
-      const o = prodMap.get(k) || { product: p.product, categoryId: p.categoryId, qtyIn: 0, qtySold: 0, revenue: 0, cogs: 0 };
+      const k = productKey(p.product);
+      if (!k) return;
+      const o = prodMap.get(k) || { product: p.product, qtyIn: 0, qtySold: 0, revenue: 0, cogs: 0 };
       o.qtyIn = (o.qtyIn || 0) + num(p.qty);
       prodMap.set(k, o);
     });
@@ -1537,9 +2368,8 @@
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td data-label="商品">${o.product}</td>
-          <td data-label="分类">${catName(state, o.categoryId)}</td>
-          <td data-label="进货量">${(o.qtyIn || 0).toFixed(2)}</td>
-          <td data-label="销售量">${num(o.qtySold).toFixed(2)}</td>
+          <td data-label="进货量">${formatQtyCell(o.qtyIn || 0, state, state.units[0].id)}</td>
+          <td data-label="销售量">${formatQtyCell(o.qtySold, state, state.units[0].id)}</td>
           <td data-label="销售额" class="lx-money">${money(o.revenue)}</td>
           <td data-label="销售成本" class="lx-money">${money(o.cogs)}</td>
           <td data-label="利润" class="lx-money">${money(prof)}</td>
@@ -1547,34 +2377,8 @@
         els.productStatsTbody.appendChild(tr);
       });
 
-    const catMap = new Map();
-    fs.forEach((s) => {
-      const o = catMap.get(s.categoryId) || { revenue: 0, cogs: 0 };
-      o.revenue += num(s.amount);
-      o.cogs += num(s.costAtSale);
-      catMap.set(s.categoryId, o);
-    });
-    const totalProf = Array.from(catMap.values()).reduce((a, x) => a + (x.revenue - x.cogs), 0) || 1;
-    els.categoryStatsTbody.innerHTML = "";
-    Array.from(catMap.entries())
-      .sort((a, b) => b[1].revenue - a[1].revenue)
-      .forEach(([cid, o]) => {
-        const prof = o.revenue - o.cogs;
-        const share = (100 * prof) / totalProf;
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td data-label="品类">${catName(state, cid)}</td>
-          <td data-label="销售额" class="lx-money">${money(o.revenue)}</td>
-          <td data-label="销售成本" class="lx-money">${money(o.cogs)}</td>
-          <td data-label="利润" class="lx-money">${money(prof)}</td>
-          <td data-label="利润贡献占比">${share.toFixed(1)}%</td>`;
-        els.categoryStatsTbody.appendChild(tr);
-      });
-
-    if (els.bestsellerProductTbody && els.bestsellerCategoryTbody) {
-      const bsS = (els.bsStart && els.bsStart.value.trim()) || start;
-      const bsE = (els.bsEnd && els.bsEnd.value.trim()) || end;
-      const { sales: fsRank } = filterRows(state, bsS, bsE, wh, cat);
+    if (els.bestsellerProductTbody) {
+      const { sales: fsRank } = filterRows(state, start, end, wh);
 
       const prodRank = new Map();
       fsRank.forEach((s) => {
@@ -1589,30 +2393,12 @@
       els.bestsellerProductTbody.innerHTML = "";
       prodRows.forEach((o, i) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td data-label="名次">${i + 1}</td><td data-label="商品">${escapeHtml(o.label)}</td><td data-label="销售数量">${o.qty.toFixed(2)}</td><td data-label="销售额" class="lx-money">${money(
-          o.rev
-        )}</td>`;
+        tr.innerHTML = `<td data-label="名次">${i + 1}</td><td data-label="商品">${escapeHtml(o.label)}</td><td data-label="销售数量">${formatQtyCell(
+          o.qty,
+          state,
+          state.units[0].id
+        )}</td><td data-label="销售额" class="lx-money">${money(o.rev)}</td>`;
         els.bestsellerProductTbody.appendChild(tr);
-      });
-
-      const catRank = new Map();
-      fsRank.forEach((s) => {
-        const cid = s.categoryId;
-        const o = catRank.get(cid) || { qty: 0, rev: 0 };
-        o.qty += num(s.qty);
-        o.rev += num(s.amount);
-        catRank.set(cid, o);
-      });
-      const catRows = Array.from(catRank.entries())
-        .map(([cid, o]) => ({ cid, qty: o.qty, rev: o.rev }))
-        .sort((a, b) => b.rev - a.rev || b.qty - a.qty);
-      els.bestsellerCategoryTbody.innerHTML = "";
-      catRows.forEach((o, i) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td data-label="名次">${i + 1}</td><td data-label="分类">${escapeHtml(catName(state, o.cid))}</td><td data-label="销售数量">${o.qty.toFixed(2)}</td><td data-label="销售额" class="lx-money">${money(
-          o.rev
-        )}</td>`;
-        els.bestsellerCategoryTbody.appendChild(tr);
       });
     }
   }
@@ -1640,12 +2426,15 @@
       date: els.pDate.value,
       supplier: els.pSupplier.value.trim(),
       product: els.pProduct.value.trim(),
-      categoryId: els.pCategory.value,
+      categoryId: defaultCategoryId(state),
       warehouseId: els.pWarehouse.value,
+      unitId: (els.pUnit && els.pUnit.value) || defaultUnitId(state),
       qty: num(els.pQty.value),
       price: num(els.pPrice.value),
     };
     if (!row.product) return alert("请填写商品名称");
+    ensureMasterDef(state, "supplierDefs", row.supplier);
+    ensureMasterDef(state, "productDefs", row.product);
     state.purchases.push(row);
     saveState(state);
     els.pSupplier.value = "";
@@ -1679,8 +2468,9 @@
       id: uid(),
       date: els.sDate.value,
       product: prod,
-      categoryId: els.sCategory.value,
+      categoryId: defaultCategoryId(state),
       warehouseId: wh,
+      unitId: (els.sUnit && els.sUnit.value) || defaultUnitId(state),
       qty,
       price,
       amount,
@@ -1690,6 +2480,8 @@
       paidAtSale,
       arReceiptAllocated: 0,
     };
+    ensureMasterDef(state, "productDefs", prod);
+    if (customerName) ensureMasterDef(state, "customerDefs", customerName);
     state.sales.push(row);
     saveState(state);
     els.sProduct.value = "";
@@ -1712,6 +2504,7 @@
     };
     if (!row.customerName) return alert("请填写客户");
     if (row.amount <= 0) return alert("金额须大于 0");
+    ensureMasterDef(state, "customerDefs", row.customerName);
     state.receipts.push(row);
     saveState(state);
     els.rcAmount.value = "";
@@ -1730,11 +2523,13 @@
       date: els.aDate.value,
       warehouseId: els.aWarehouse.value,
       product: els.aProduct.value.trim(),
+      unitId: (els.aUnit && els.aUnit.value) || defaultUnitId(state),
       qty: num(els.aQty.value),
       reason: els.aReason.value.trim(),
     };
     if (!row.product) return alert("请填写商品");
     if (!row.reason) return alert("请填写原因");
+    ensureMasterDef(state, "productDefs", row.product);
     state.adjustments.push(row);
     saveState(state);
     els.aProduct.value = "";
@@ -1753,10 +2548,12 @@
     if (!prod) return alert("请填写商品");
     const avail = stockAvailable(from, prod);
     if (qty > avail + 1e-6) return alert("源仓库存不足（可用 " + avail.toFixed(2) + "）");
+    ensureMasterDef(state, "productDefs", prod);
     state.transfers.push({
       id: uid(),
       date: els.tDate.value,
       product: prod,
+      unitId: (els.tUnit && els.tUnit.value) || defaultUnitId(state),
       qty,
       fromWarehouseId: from,
       toWarehouseId: to,
@@ -1779,43 +2576,203 @@
     fullRender();
   });
 
-  els.categoryForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const name = els.newCategory.value.trim();
-    if (!name) return;
-    state.categories.push({ id: uid(), name });
-    saveState(state);
-    els.newCategory.value = "";
-    fullRender();
+  if (els.unitForm) {
+    els.unitForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = String(els.newUnit.value || "").trim();
+      if (!name) return;
+      if ((state.units || []).some((x) => String(x.name || "").trim() === name)) return alert("单位已存在");
+      state.units.push({ id: uid(), name });
+      saveState(state);
+      els.newUnit.value = "";
+      fullRender();
+    });
+  }
+  if (els.productDefForm) {
+    els.productDefForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = String(els.newProductDef.value || "").trim();
+      if (!name) return;
+      if (defNameTaken(state, "productDefs", name)) return alert("该商品已在档案中");
+      state.productDefs.push({ id: uid(), name });
+      saveState(state);
+      els.newProductDef.value = "";
+      fullRender();
+    });
+  }
+  if (els.customerDefForm) {
+    els.customerDefForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = String(els.newCustomerDef.value || "").trim();
+      if (!name) return;
+      if (defNameTaken(state, "customerDefs", name)) return alert("该客户已在档案中");
+      state.customerDefs.push({ id: uid(), name });
+      saveState(state);
+      els.newCustomerDef.value = "";
+      fullRender();
+    });
+  }
+  if (els.supplierDefForm) {
+    els.supplierDefForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = String(els.newSupplierDef.value || "").trim();
+      if (!name) return;
+      if (defNameTaken(state, "supplierDefs", name)) return alert("该供应商已在档案中");
+      state.supplierDefs.push({ id: uid(), name });
+      saveState(state);
+      els.newSupplierDef.value = "";
+      fullRender();
+    });
+  }
+
+  const tabPurchase = document.getElementById("tab-purchase");
+  if (tabPurchase) {
+    tabPurchase.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!t || !t.id) return;
+      if (t.id === "purchasePagePrev") {
+        purchaseListPage = Math.max(1, purchaseListPage - 1);
+        renderPurchases();
+      } else if (t.id === "purchasePageNext") {
+        purchaseListPage += 1;
+        renderPurchases();
+      } else if (t.id === "purchaseBatchDelBtn") {
+        if (purchaseCheckedIds.size === 0) return alert("请先勾选要删除的进货单");
+        if (
+          !confirmTypedPhrase(
+            "将永久删除已选的 " + purchaseCheckedIds.size + " 条进货，库存与统计会重算，不可恢复。",
+            "确认批量删除进货"
+          )
+        )
+          return;
+        state.purchases = state.purchases.filter((p) => !purchaseCheckedIds.has(p.id));
+        purchaseCheckedIds.clear();
+        saveState(state);
+        fullRender();
+      }
+    });
+    tabPurchase.addEventListener("change", (e) => {
+      const t = e.target;
+      if (!t) return;
+      if (t.id === "purchaseSelectAll") {
+        const rows = filteredPurchaseRows(state, els.purchaseSearch.value.trim().toLowerCase());
+        if (t.checked) rows.forEach((p) => purchaseCheckedIds.add(p.id));
+        else rows.forEach((p) => purchaseCheckedIds.delete(p.id));
+        renderPurchases();
+      } else if (t.matches && t.matches("input[data-pick-p]")) {
+        const id = t.getAttribute("data-pick-p");
+        if (t.checked) purchaseCheckedIds.add(id);
+        else purchaseCheckedIds.delete(id);
+        renderPurchases();
+      }
+    });
+  }
+
+  const tabSales = document.getElementById("tab-sales");
+  if (tabSales) {
+    tabSales.addEventListener("click", (e) => {
+      const t = e.target;
+      if (!t || !t.id) return;
+      if (t.id === "salesPagePrev") {
+        salesListPage = Math.max(1, salesListPage - 1);
+        renderSales();
+      } else if (t.id === "salesPageNext") {
+        salesListPage += 1;
+        renderSales();
+      } else if (t.id === "salesBatchDelBtn") {
+        if (salesCheckedIds.size === 0) return alert("请先勾选要删除的销售单");
+        if (
+          !confirmTypedPhrase(
+            "将永久删除已选的 " + salesCheckedIds.size + " 条销售，应收与库存会重算，不可恢复。",
+            "确认批量删除销售"
+          )
+        )
+          return;
+        state.sales = state.sales.filter((s) => !salesCheckedIds.has(s.id));
+        salesCheckedIds.clear();
+        saveState(state);
+        fullRender();
+      }
+    });
+    tabSales.addEventListener("change", (e) => {
+      const t = e.target;
+      if (!t) return;
+      if (t.id === "salesSelectAll") {
+        const rows = filteredSalesRows(state, els.salesSearch.value.trim().toLowerCase());
+        if (t.checked) rows.forEach((s) => salesCheckedIds.add(s.id));
+        else rows.forEach((s) => salesCheckedIds.delete(s.id));
+        renderSales();
+      } else if (t.matches && t.matches("input[data-pick-s]")) {
+        const id = t.getAttribute("data-pick-s");
+        if (t.checked) salesCheckedIds.add(id);
+        else salesCheckedIds.delete(id);
+        renderSales();
+      }
+    });
+  }
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target && e.target.closest && e.target.closest("[data-export-module]");
+    if (!btn) return;
+    const mod = btn.getAttribute("data-export-module");
+    try {
+      exportModuleWorkbook(mod);
+    } catch (err) {
+      alert(err && err.message ? err.message : String(err));
+    }
   });
 
-  els.purchaseSearch.addEventListener("input", renderPurchases);
-  els.purchaseCategoryFilter.addEventListener("change", renderPurchases);
-  els.salesSearch.addEventListener("input", renderSales);
-  els.salesCategoryFilter.addEventListener("change", renderSales);
+  function wireMainFormProductUnits() {
+    const pairs = [
+      [els.pProduct, els.pUnit],
+      [els.sProduct, els.sUnit],
+      [els.aProduct, els.aUnit],
+      [els.tProduct, els.tUnit],
+    ];
+    pairs.forEach(([inp, sel]) => {
+      if (!inp || !sel) return;
+      inp.addEventListener("input", () => setSelectUnitIfValid(sel, latestUnitIdForProduct(state, inp.value)));
+      inp.addEventListener("change", () => setSelectUnitIfValid(sel, latestUnitIdForProduct(state, inp.value)));
+    });
+  }
+  wireMainFormProductUnits();
+
+  els.purchaseSearch.addEventListener("input", () => {
+    purchaseListPage = 1;
+    purchaseCheckedIds.clear();
+    renderPurchases();
+  });
+  els.salesSearch.addEventListener("input", () => {
+    salesListPage = 1;
+    salesCheckedIds.clear();
+    renderSales();
+  });
   els.invWarehouseFilter.addEventListener("change", renderInventory);
 
   els.filterForm.addEventListener("submit", (e) => {
     e.preventDefault();
     renderAnalytics();
   });
+  if (els.fGroup) {
+    els.fGroup.addEventListener("change", () => {
+      renderAnalytics();
+    });
+  }
   els.resetFilterBtn.addEventListener("click", () => {
     els.fStart.value = "";
     els.fEnd.value = "";
     els.fWarehouse.value = "";
-    els.fCategory.value = "";
     els.fGroup.value = "day";
-    if (els.bsStart) els.bsStart.value = "";
-    if (els.bsEnd) els.bsEnd.value = "";
+    purchaseListPage = 1;
+    salesListPage = 1;
+    purchaseCheckedIds.clear();
+    salesCheckedIds.clear();
     renderAnalytics();
   });
 
-  if (els.bestsellerForm) {
-    els.bestsellerForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      renderAnalytics();
-    });
-  }
+  if (els.fStart) els.fStart.addEventListener("change", () => renderAnalytics());
+  if (els.fEnd) els.fEnd.addEventListener("change", () => renderAnalytics());
+  if (els.fWarehouse) els.fWarehouse.addEventListener("change", () => renderAnalytics());
 
   els.exportMonthBtn.addEventListener("click", () => {
     const y = new Date().getFullYear();
@@ -1826,15 +2783,15 @@
     state.purchases
       .filter((p) => p.date >= start && p.date <= end)
       .forEach((p) =>
-        rows.push(["进货", p.date, whName(state, p.warehouseId), p.supplier, p.product, catName(state, p.categoryId), p.qty, p.price])
+        rows.push(["进货", p.date, whName(state, p.warehouseId), p.supplier, p.product, formatQtyCell(p.qty, state, p.unitId), p.price])
       );
     state.sales
       .filter((s) => s.date >= start && s.date <= end)
       .forEach((s) =>
-        rows.push(["销售", s.date, whName(state, s.warehouseId), s.buyer, s.product, catName(state, s.categoryId), s.qty, s.price])
+        rows.push(["销售", s.date, whName(state, s.warehouseId), s.buyer, s.product, formatQtyCell(s.qty, state, s.unitId), s.price])
       );
     const esc = (x) => '"' + String(x == null ? "" : x).replace(/"/g, '""') + '"';
-    const csv = ["类型,日期,仓库/买方,对方,商品,分类,数量,单价"]
+    const csv = ["类型,日期,仓库/买方,对方,商品,数量,单价"]
       .concat(rows.map((r) => r.map(esc).join(",")))
       .join("\n");
     const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
@@ -1862,6 +2819,15 @@
     const r = new FileReader();
     r.onload = () => {
       try {
+        if (
+          !confirmTypedPhrase(
+            "导入 JSON 将用文件中的数据覆盖本机当前全部进销存数据，不可撤销。\n建议先导出备份再操作。\n\n确定后请在下一步输入确认语。",
+            "确认覆盖"
+          )
+        ) {
+          els.backupFileInput.value = "";
+          return;
+        }
         state = importBackup(String(r.result));
         fullRender();
         alert("导入成功");
@@ -1885,6 +2851,7 @@
   });
   els.sPaymentType.dispatchEvent(new Event("change"));
 
+  bindSuggestDelegation();
   fullRender();
   maybeBackupReminder();
 })();

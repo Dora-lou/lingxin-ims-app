@@ -5,9 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#2563eb" />
   <title>玲鑫建材进销存管理系统</title>
-  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="manifest" href="manifest.webmanifest?v=20260608">
   <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="玲鑫进销存">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="apple-touch-icon" href="icons/icon-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
@@ -138,7 +140,10 @@
     </nav>
 
     <section id="tab-purchase" class="panel block space-y-6">
-      <h2 class="lx-page-title">进货管理</h2>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <h2 class="lx-page-title">进货管理</h2>
+        <button type="button" class="lx-btn-outline shrink-0" data-export-module="purchase">下载本模块（Excel）</button>
+      </div>
       <div class="lx-card">
         <form id="purchaseForm" class="lx-form-grid">
           <div class="min-w-0"><label class="lx-label" for="pDate">日期</label><input type="date" id="pDate" class="lx-input" required /></div>
@@ -156,10 +161,22 @@
           <div class="lx-span-2 min-w-0"><label class="lx-label" for="purchaseSearch">搜索商品</label><input id="purchaseSearch" class="lx-input" placeholder="关键字" /></div>
         </form>
       </div>
+      <div class="lx-card flex flex-col gap-3 border-slate-200 p-4 dark:border-slate-700 sm:flex-row sm:flex-wrap sm:items-center">
+        <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input type="checkbox" id="purchaseSelectAll" class="h-4 w-4 rounded border-slate-300 text-blue-600" />
+          全选当前筛选结果
+        </label>
+        <button type="button" id="purchaseBatchDelBtn" class="lx-btn-outline text-sm">删除所选</button>
+        <span id="purchasePageInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+        <div class="flex flex-wrap gap-2 sm:ml-auto">
+          <button type="button" id="purchasePagePrev" class="lx-btn-secondary text-sm">上一页</button>
+          <button type="button" id="purchasePageNext" class="lx-btn-secondary text-sm">下一页</button>
+        </div>
+      </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table">
-            <thead><tr><th>日期</th><th>仓库</th><th>供应商</th><th>商品</th><th>数量</th><th>单价</th><th>小计</th><th>操作</th></tr></thead>
+            <thead><tr><th class="w-10 pr-0"><span class="sr-only">多选</span></th><th>日期</th><th>仓库</th><th>供应商</th><th>商品</th><th>数量</th><th>单价</th><th>小计</th><th>操作</th></tr></thead>
             <tbody id="purchaseTbody"></tbody>
           </table>
         </div>
@@ -167,7 +184,10 @@
     </section>
 
     <section id="tab-sales" class="panel hidden space-y-6">
-      <h2 class="lx-page-title">销售管理</h2>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <h2 class="lx-page-title">销售管理</h2>
+        <button type="button" class="lx-btn-outline shrink-0" data-export-module="sales">下载本模块（Excel）</button>
+      </div>
       <div class="lx-card">
         <form id="salesForm" class="lx-form-grid">
           <div class="min-w-0"><label class="lx-label" for="sDate">日期</label><input type="date" id="sDate" class="lx-input" required /></div>
@@ -188,10 +208,22 @@
           <div class="lx-span-2 min-w-0"><label class="lx-label" for="salesSearch">搜索商品</label><input id="salesSearch" class="lx-input" placeholder="关键字" /></div>
         </form>
       </div>
+      <div class="lx-card flex flex-col gap-3 border-slate-200 p-4 dark:border-slate-700 sm:flex-row sm:flex-wrap sm:items-center">
+        <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
+          <input type="checkbox" id="salesSelectAll" class="h-4 w-4 rounded border-slate-300 text-blue-600" />
+          全选当前筛选结果
+        </label>
+        <button type="button" id="salesBatchDelBtn" class="lx-btn-outline text-sm">删除所选</button>
+        <span id="salesPageInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+        <div class="flex flex-wrap gap-2 sm:ml-auto">
+          <button type="button" id="salesPagePrev" class="lx-btn-secondary text-sm">上一页</button>
+          <button type="button" id="salesPageNext" class="lx-btn-secondary text-sm">下一页</button>
+        </div>
+      </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table">
-            <thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>付款</th><th>客户</th><th>数量</th><th>售价</th><th>成本</th><th>小计</th><th>已收</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
+            <thead><tr><th class="w-10 pr-0"><span class="sr-only">多选</span></th><th>日期</th><th>仓库</th><th>商品</th><th>付款</th><th>客户</th><th>数量</th><th>售价</th><th>成本</th><th>小计</th><th>已收</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
             <tbody id="salesTbody"></tbody>
           </table>
         </div>
@@ -199,7 +231,10 @@
     </section>
 
     <section id="tab-receivables" class="panel hidden space-y-6">
-      <h2 class="lx-page-title">应收账款</h2>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <h2 class="lx-page-title">应收账款</h2>
+        <button type="button" class="lx-btn-outline shrink-0" data-export-module="receivables">下载本模块（Excel）</button>
+      </div>
       <div class="lx-card">
         <form class="lx-form-grid" onsubmit="return false;">
           <div class="lx-span-2 min-w-0">
@@ -253,7 +288,10 @@
     </section>
 
     <section id="tab-inventory" class="panel hidden space-y-6">
-      <h2 class="lx-page-title">库存管理</h2>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <h2 class="lx-page-title">库存管理</h2>
+        <button type="button" class="lx-btn-outline shrink-0" data-export-module="inventory">下载本模块（Excel）</button>
+      </div>
       <div class="lx-card">
         <form id="adjustForm" class="lx-form-grid">
           <div class="min-w-0"><label class="lx-label" for="aDate">日期</label><input type="date" id="aDate" class="lx-input" required /></div>
@@ -308,7 +346,10 @@
     </section>
 
     <section id="tab-analytics" class="panel hidden space-y-6">
-      <h2 class="lx-page-title">统计分析</h2>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <h2 class="lx-page-title">统计分析</h2>
+        <button type="button" class="lx-btn-outline shrink-0" data-export-module="analytics">下载本模块（Excel）</button>
+      </div>
       <div class="lx-card">
         <form id="filterForm" class="lx-form-grid">
           <div class="min-w-0"><label class="lx-label" for="fStart">开始日期</label><input type="date" id="fStart" class="lx-input" /></div>
@@ -362,7 +403,10 @@
     </section>
 
     <section id="tab-basics" class="panel hidden space-y-6">
-      <h2 class="lx-page-title">基础设置</h2>
+      <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <h2 class="lx-page-title">基础设置</h2>
+        <button type="button" class="lx-btn-outline shrink-0" data-export-module="basics">下载本模块（Excel）</button>
+      </div>
       <div class="lx-card space-y-3">
         <h3 class="lx-section-title !mb-0">数据导出</h3>
         <p class="lx-muted text-[13px] leading-relaxed">一键导出当前系统中的仓库、单位、商品/客户/供应商档案、进货、销售、收款、调拨、库存调整等全部业务数据，生成多工作表 Excel（.xlsx）。需能加载 SheetJS 脚本（联网首次打开页面）。</p>
@@ -447,11 +491,11 @@
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260605"></script>
+  <script src="lingxin-ims-app.js?v=20260607"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./service-worker.js?v=20260605").catch(function (err) {
+        navigator.serviceWorker.register("./service-worker.js?v=20260607").catch(function (err) {
           console.log("SW 注册失败:", err);
         });
       });
