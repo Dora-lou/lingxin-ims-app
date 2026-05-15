@@ -68,6 +68,13 @@
       receipts: [],
       settings: { backupReminderEnabled: true, lastBackupPromptAt: null },
       suggestions: { products: [], customers: [], suppliers: [] },
+      fixedCostCategories: [
+        { id: uid(), name: "房租" },
+        { id: uid(), name: "水电" },
+        { id: uid(), name: "其它1" },
+        { id: uid(), name: "其它2" },
+      ],
+      fixedCostEntries: [],
     };
   }
 
@@ -100,6 +107,15 @@
     ["products", "customers", "suppliers"].forEach((k) => {
       if (!Array.isArray(s.suggestions[k])) s.suggestions[k] = [];
     });
+    if (!Array.isArray(s.fixedCostCategories) || !s.fixedCostCategories.length) {
+      s.fixedCostCategories = [
+        { id: uid(), name: "房租" },
+        { id: uid(), name: "水电" },
+        { id: uid(), name: "其它1" },
+        { id: uid(), name: "其它2" },
+      ];
+    }
+    if (!Array.isArray(s.fixedCostEntries)) s.fixedCostEntries = [];
     const defWh = s.warehouses[0].id;
     const defCat = s.categories[0].id;
     s.purchases = s.purchases.map((p) => ({
@@ -157,28 +173,42 @@
       (s.suggestions[sk] || []).forEach((n) => ensureMasterDef(s, mapSug[sk], n));
     });
     syncMastersFromTransactions(s);
+    const du = defaultUnitId(s);
+    (s.productDefs || []).forEach((p) => {
+      if (!p.unitId || !s.units.some((u) => u.id === p.unitId)) {
+        const inferred = latestUnitIdForProduct(s, p.name);
+        p.unitId = inferred && s.units.some((u) => u.id === inferred) ? inferred : du;
+      }
+    });
   }
 
-  function ensureMasterDef(st, defsKey, name) {
+  function ensureMasterDef(st, defsKey, name, opts) {
     const t = String(name || "").trim();
     if (!t) return;
     const arr = st[defsKey];
     if (!Array.isArray(arr)) return;
     if (arr.some((x) => String(x.name || "").trim() === t)) return;
-    arr.push({ id: uid(), name: t });
+    if (defsKey === "productDefs") {
+      const o = opts || {};
+      let uId = o.unitId;
+      if (!uId || !st.units.some((u) => u.id === uId)) uId = latestUnitIdForProduct(st, t) || defaultUnitId(st);
+      arr.push({ id: uid(), name: t, unitId: uId });
+    } else {
+      arr.push({ id: uid(), name: t });
+    }
   }
 
   function syncMastersFromTransactions(st) {
     st.purchases.forEach((p) => {
-      ensureMasterDef(st, "productDefs", p.product);
+      ensureMasterDef(st, "productDefs", p.product, { unitId: p.unitId });
       ensureMasterDef(st, "supplierDefs", p.supplier);
     });
     st.sales.forEach((s) => {
-      ensureMasterDef(st, "productDefs", s.product);
+      ensureMasterDef(st, "productDefs", s.product, { unitId: s.unitId });
       ensureMasterDef(st, "customerDefs", s.customerName);
     });
-    st.adjustments.forEach((a) => ensureMasterDef(st, "productDefs", a.product));
-    st.transfers.forEach((t) => ensureMasterDef(st, "productDefs", t.product));
+    st.adjustments.forEach((a) => ensureMasterDef(st, "productDefs", a.product, { unitId: a.unitId }));
+    st.transfers.forEach((t) => ensureMasterDef(st, "productDefs", t.product, { unitId: t.unitId }));
     st.receipts.forEach((r) => ensureMasterDef(st, "customerDefs", r.customerName));
   }
 
@@ -272,6 +302,9 @@
     });
     st.transfers.forEach((t) => {
       if (t.unitId === fromId) t.unitId = toId;
+    });
+    (st.productDefs || []).forEach((p) => {
+      if (p.unitId === fromId) p.unitId = toId;
     });
   }
 
@@ -713,7 +746,11 @@
     );
     appendSheet(
       "商品档案",
-      (state.productDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name }))
+      (state.productDefs || []).map((x) => ({
+        记录ID: x.id,
+        名称: x.name,
+        默认单位: unitName(state, x.unitId),
+      }))
     );
     appendSheet(
       "客户档案",
@@ -722,6 +759,21 @@
     appendSheet(
       "供应商档案",
       (state.supplierDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name }))
+    );
+    appendSheet(
+      "固定成本项目",
+      (state.fixedCostCategories || []).map((c) => ({ 记录ID: c.id, 名称: c.name }))
+    );
+    appendSheet(
+      "固定成本明细",
+      (state.fixedCostEntries || []).map((e) => ({
+        记录ID: e.id,
+        项目: fixedCostCategoryName(state, e.categoryId),
+        开始日期: e.startDate || "",
+        结束日期: e.endDate || "",
+        金额: num(e.amount),
+        备注: e.note || "",
+      }))
     );
     appendSheet(
       "进货",
@@ -985,6 +1037,123 @@
     };
   }
 
+  function isoDayCompare(a, b) {
+    return String(a || "").localeCompare(String(b || ""));
+  }
+
+  function addDaysISO(iso, deltaDays) {
+    const d = new Date(String(iso || "").slice(0, 10) + "T12:00:00");
+    if (Number.isNaN(d.getTime())) return iso;
+    d.setDate(d.getDate() + deltaDays);
+    const p = (n) => String(n).padStart(2, "0");
+    return d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate());
+  }
+
+  function daysBetweenInclusive(isoStart, isoEnd) {
+    const d1 = new Date(String(isoStart).slice(0, 10) + "T12:00:00");
+    const d2 = new Date(String(isoEnd).slice(0, 10) + "T12:00:00");
+    if (Number.isNaN(d1.getTime()) || Number.isNaN(d2.getTime())) return 0;
+    return Math.round((d2 - d1) / 86400000) + 1;
+  }
+
+  function maxIso(a, b) {
+    return isoDayCompare(a, b) >= 0 ? a : b;
+  }
+
+  function minIso(a, b) {
+    return isoDayCompare(a, b) <= 0 ? a : b;
+  }
+
+  function entrySpanDays(segStart, segEnd) {
+    if (!segStart || !segEnd || isoDayCompare(segStart, segEnd) > 0) return 0;
+    return daysBetweenInclusive(segStart, segEnd);
+  }
+
+  function overlapDaysInclusive(windowStart, windowEnd, segStart, segEnd) {
+    const winS = windowStart || "0000-01-01";
+    const winE = windowEnd || "9999-12-31";
+    if (!segStart || !segEnd || isoDayCompare(segStart, segEnd) > 0) return 0;
+    const lo = maxIso(winS, segStart);
+    const hi = minIso(winE, segEnd);
+    if (isoDayCompare(lo, hi) > 0) return 0;
+    return daysBetweenInclusive(lo, hi);
+  }
+
+  function fixedCostAmountInWindow(entry, filterStart, filterEnd) {
+    const span = entrySpanDays(entry.startDate, entry.endDate);
+    if (span <= 0) return 0;
+    const ov = overlapDaysInclusive(filterStart, filterEnd, entry.startDate, entry.endDate);
+    if (ov <= 0) return 0;
+    return (num(entry.amount) * ov) / span;
+  }
+
+  function totalFixedCostForFilter(state, filterStart, filterEnd) {
+    return (state.fixedCostEntries || []).reduce((a, e) => a + fixedCostAmountInWindow(e, filterStart, filterEnd), 0);
+  }
+
+  function fixedCostCategoryName(st, categoryId) {
+    const c = (st.fixedCostCategories || []).find((x) => x.id === categoryId);
+    return c ? String(c.name || "").trim() || "—" : "—";
+  }
+
+  function dailyFixedAmountOnDate(state, dateISO) {
+    let sum = 0;
+    (state.fixedCostEntries || []).forEach((e) => {
+      if (!inRange(dateISO, e.startDate, e.endDate)) return;
+      const span = entrySpanDays(e.startDate, e.endDate);
+      if (span <= 0) return;
+      sum += num(e.amount) / span;
+    });
+    return sum;
+  }
+
+  function effectiveAnalysisDateBounds(state, filterStart, filterEnd, fs, fp) {
+    let s = String(filterStart || "").trim();
+    let e = String(filterEnd || "").trim();
+    const tx = [];
+    fs.forEach((x) => {
+      if (x.date) tx.push(x.date);
+    });
+    fp.forEach((x) => {
+      if (x.date) tx.push(x.date);
+    });
+    tx.sort();
+    if (!s && tx.length) s = tx[0];
+    if (!e && tx.length) e = tx[tx.length - 1];
+    (state.fixedCostEntries || []).forEach((en) => {
+      if (!en.startDate || !en.endDate) return;
+      if (!s || isoDayCompare(en.startDate, s) < 0) s = en.startDate;
+      if (!e || isoDayCompare(en.endDate, e) > 0) e = en.endDate;
+    });
+    if (!s || !e || isoDayCompare(s, e) > 0) return { s: "", e: "" };
+    return { s, e };
+  }
+
+  function periodKeyForGroup(groupMode, iso) {
+    if (groupMode === "week") return weekKey(iso);
+    if (groupMode === "month") return monthKey(iso);
+    if (groupMode === "quarter") return quarterKey(iso);
+    if (groupMode === "year") return yearKey(iso);
+    return iso;
+  }
+
+  function fixedCostByPeriodKey(state, filterStart, filterEnd, groupMode, fs, fp) {
+    const m = new Map();
+    const bounds = effectiveAnalysisDateBounds(state, filterStart, filterEnd, fs, fp);
+    if (!bounds.s || !bounds.e) return m;
+    let cur = bounds.s;
+    for (;;) {
+      if (inRange(cur, filterStart, filterEnd)) {
+        const k = periodKeyForGroup(groupMode, cur);
+        const add = dailyFixedAmountOnDate(state, cur);
+        m.set(k, (m.get(k) || 0) + add);
+      }
+      if (cur === bounds.e) break;
+      cur = addDaysISO(cur, 1);
+    }
+    return m;
+  }
+
   function confirmTypedPhrase(preConfirmText, requiredExact) {
     if (!confirm(preConfirmText)) return false;
     const t = prompt('请输入「' + requiredExact + '」须与提示完全一致（含空格）。\n点取消即放弃。');
@@ -1013,6 +1182,16 @@
     });
     cand.sort((a, b) => -cmpDate(a.date, b.date));
     return cand.length ? cand[0].unitId : null;
+  }
+
+  function resolvedUnitIdForProductInput(st, productName) {
+    const t = String(productName || "").trim();
+    if (!t) return null;
+    const def = (st.productDefs || []).find((x) => String(x.name || "").trim() === t);
+    if (def && def.unitId && st.units.some((u) => u.id === def.unitId)) return def.unitId;
+    const lu = latestUnitIdForProduct(st, productName);
+    if (lu && st.units.some((u) => u.id === lu)) return lu;
+    return null;
   }
 
   function setSelectUnitIfValid(selectEl, unitId) {
@@ -1252,9 +1431,31 @@
       bookAppendJsonSheets(XLSX, wb, [
         { name: "仓库", rows: state.warehouses.map((w) => ({ 记录ID: w.id, 名称: w.name })) },
         { name: "单位", rows: (state.units || []).map((u) => ({ 记录ID: u.id, 名称: u.name })) },
-        { name: "商品档案", rows: (state.productDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name })) },
+        {
+          name: "商品档案",
+          rows: (state.productDefs || []).map((x) => ({
+            记录ID: x.id,
+            名称: x.name,
+            默认单位: unitName(state, x.unitId),
+          })),
+        },
         { name: "客户档案", rows: (state.customerDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name })) },
         { name: "供应商档案", rows: (state.supplierDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name })) },
+        {
+          name: "固定成本项目",
+          rows: (state.fixedCostCategories || []).map((c) => ({ 记录ID: c.id, 名称: c.name })),
+        },
+        {
+          name: "固定成本明细",
+          rows: (state.fixedCostEntries || []).map((e) => ({
+            记录ID: e.id,
+            项目: fixedCostCategoryName(state, e.categoryId),
+            开始日期: e.startDate || "",
+            结束日期: e.endDate || "",
+            金额: num(e.amount),
+            备注: e.note || "",
+          })),
+        },
       ]);
       writeWorkbookToFile(wb, nameBase + "_基础设置");
       return;
@@ -1286,19 +1487,32 @@
         o.expense = (o.expense || 0) + num(p.qty) * num(p.price);
         map.set(k, o);
       });
-      const periodRows = Array.from(map.keys())
+      const fixedByKey = fixedCostByPeriodKey(state, start, end, groupMode, fs, fp);
+      fixedByKey.forEach((amt, k) => {
+        if (!map.has(k)) map.set(k, { revenue: 0, cogs: 0, expense: 0 });
+      });
+      const periodRows = Array.from(new Set([...map.keys(), ...fixedByKey.keys()]))
         .sort()
         .map((k) => {
-          const o = map.get(k);
+          const o = map.get(k) || { revenue: 0, cogs: 0, expense: 0 };
           const rev = num(o.revenue);
           const cg = num(o.cogs);
-          const prof = rev - cg;
+          const fx = num(fixedByKey.get(k) || 0);
+          const prof = rev - cg - fx;
           const mar = rev > 0 ? (100 * prof) / rev : 0;
-          return { 周期: k, 销售额: rev, 销售成本: cg, 利润: prof, 利润率: +mar.toFixed(2) + "%" };
+          return {
+            周期: k,
+            销售额: rev,
+            销售成本: cg,
+            固定成本: fx,
+            利润: prof,
+            利润率: +mar.toFixed(2) + "%",
+          };
         });
       const revenue = fs.reduce((a, s) => a + num(s.amount), 0);
       const cogs = fs.reduce((a, s) => a + num(s.costAtSale), 0);
-      const profit = revenue - cogs;
+      const fixedTotal = totalFixedCostForFilter(state, start, end);
+      const profit = revenue - cogs - fixedTotal;
       const margin = revenue > 0 ? (100 * profit) / revenue : 0;
       const prodMap = new Map();
       fs.forEach((s) => {
@@ -1363,6 +1577,7 @@
               粒度: groupMode,
               销售额合计: revenue,
               销售成本合计: cogs,
+              固定成本合计: fixedTotal,
               利润合计: profit,
               利润率: margin.toFixed(2) + "%",
             },
@@ -1477,6 +1692,7 @@
     unitTbody: document.getElementById("unitTbody"),
     productDefForm: document.getElementById("productDefForm"),
     newProductDef: document.getElementById("newProductDef"),
+    newProductDefUnit: document.getElementById("newProductDefUnit"),
     productDefTbody: document.getElementById("productDefTbody"),
     customerDefForm: document.getElementById("customerDefForm"),
     newCustomerDef: document.getElementById("newCustomerDef"),
@@ -1484,6 +1700,16 @@
     supplierDefForm: document.getElementById("supplierDefForm"),
     newSupplierDef: document.getElementById("newSupplierDef"),
     supplierDefTbody: document.getElementById("supplierDefTbody"),
+    fixedCostCategoryTbody: document.getElementById("fixedCostCategoryTbody"),
+    fixedCostEntryTbody: document.getElementById("fixedCostEntryTbody"),
+    fixedCostAddCategoryForm: document.getElementById("fixedCostAddCategoryForm"),
+    newFixedCostCategoryName: document.getElementById("newFixedCostCategoryName"),
+    fixedCostEntryForm: document.getElementById("fixedCostEntryForm"),
+    fcCategory: document.getElementById("fcCategory"),
+    fcStart: document.getElementById("fcStart"),
+    fcEnd: document.getElementById("fcEnd"),
+    fcAmount: document.getElementById("fcAmount"),
+    fcNote: document.getElementById("fcNote"),
     invWarehouseFilter: document.getElementById("invWarehouseFilter"),
     inventoryTbody: document.getElementById("inventoryTbody"),
     transferTbody: document.getElementById("transferTbody"),
@@ -1499,6 +1725,7 @@
     sumCogs: document.getElementById("sumCogs"),
     sumProfit: document.getElementById("sumProfit"),
     sumMargin: document.getElementById("sumMargin"),
+    sumFixedCosts: document.getElementById("sumFixedCosts"),
     profitGroupTbody: document.getElementById("profitGroupTbody"),
     productStatsTbody: document.getElementById("productStatsTbody"),
     trendChart: document.getElementById("trendChart"),
@@ -1700,7 +1927,7 @@
           };
           if (!next.product) return alert("请填写商品名称");
           ensureMasterDef(state, "supplierDefs", next.supplier);
-          ensureMasterDef(state, "productDefs", next.product);
+          ensureMasterDef(state, "productDefs", next.product, { unitId: next.unitId });
           state.purchases = state.purchases.map((x) => (x.id === id ? next : x));
           saveState(state);
           fullRender();
@@ -1710,8 +1937,8 @@
           const mp = document.getElementById("m_product");
           const mu = document.getElementById("m_unit");
           if (mp && mu) {
-            mp.addEventListener("input", () => setSelectUnitIfValid(mu, latestUnitIdForProduct(state, mp.value)));
-            setSelectUnitIfValid(mu, latestUnitIdForProduct(state, mp.value));
+            mp.addEventListener("input", () => setSelectUnitIfValid(mu, resolvedUnitIdForProductInput(state, mp.value)));
+            setSelectUnitIfValid(mu, resolvedUnitIdForProductInput(state, mp.value));
           }
         });
       });
@@ -1809,7 +2036,7 @@
             buyer: document.getElementById("m_buyer").value.trim(),
           };
           if (!next.product) return alert("请填写商品名称");
-          ensureMasterDef(state, "productDefs", next.product);
+          ensureMasterDef(state, "productDefs", next.product, { unitId: next.unitId });
           if (next.customerName) ensureMasterDef(state, "customerDefs", next.customerName);
           next.amount = +(num(next.qty) * num(next.price)).toFixed(2);
           next.paidAtSale = Math.min(next.amount, next.paidAtSale);
@@ -1826,8 +2053,8 @@
           const mp = document.getElementById("m_product");
           const mu = document.getElementById("m_unit");
           if (mp && mu) {
-            mp.addEventListener("input", () => setSelectUnitIfValid(mu, latestUnitIdForProduct(state, mp.value)));
-            setSelectUnitIfValid(mu, latestUnitIdForProduct(state, mp.value));
+            mp.addEventListener("input", () => setSelectUnitIfValid(mu, resolvedUnitIdForProductInput(state, mp.value)));
+            setSelectUnitIfValid(mu, resolvedUnitIdForProductInput(state, mp.value));
           }
         });
       });
@@ -1998,6 +2225,86 @@
     });
   }
 
+  function renderFixedCostTables() {
+    if (!els.fixedCostCategoryTbody || !els.fixedCostEntryTbody) return;
+
+    els.fixedCostCategoryTbody.innerHTML = "";
+    (state.fixedCostCategories || []).forEach((c) => {
+      const used = (state.fixedCostEntries || []).some((e) => e.categoryId === c.id);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td data-label="项目名称">${escapeHtml(c.name)}</td>
+        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-fc-cat-rename="${escapeHtml(c.id)}" placeholder="新名称" /></td>
+        <td data-label="操作" class="text-right">
+          <div class="flex flex-wrap justify-end gap-2">
+            <button type="button" class="lx-btn-secondary text-xs" data-fc-cat-apply="${escapeHtml(c.id)}">保存名称</button>
+            ${
+              (state.fixedCostCategories || []).length <= 1
+                ? ""
+                : lxIconDel(`data-fc-cat-del="${c.id}" data-fc-cat-used="${used ? "1" : "0"}"`)
+            }
+          </div>
+        </td>`;
+      els.fixedCostCategoryTbody.appendChild(tr);
+    });
+    els.fixedCostCategoryTbody.querySelectorAll("[data-fc-cat-apply]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-fc-cat-apply");
+        const inp = els.fixedCostCategoryTbody.querySelector('[data-fc-cat-rename="' + id + '"]');
+        const newName = String(inp.value || "").trim();
+        if (!newName) return alert("名称不能为空");
+        if ((state.fixedCostCategories || []).some((x) => x.id !== id && String(x.name || "").trim() === newName))
+          return alert("项目名称已存在");
+        state.fixedCostCategories = (state.fixedCostCategories || []).map((x) => (x.id === id ? { ...x, name: newName } : x));
+        saveState(state);
+        fullRender();
+      });
+    });
+    els.fixedCostCategoryTbody.querySelectorAll("[data-fc-cat-del]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-fc-cat-del");
+        if (b.getAttribute("data-fc-cat-used") === "1") return alert("该项目下仍有固定成本记录，请先删除或修改相关记录。");
+        if ((state.fixedCostCategories || []).length <= 1) return alert("至少保留一个成本项目");
+        if (!confirm("确定删除该成本项目？")) return;
+        state.fixedCostCategories = (state.fixedCostCategories || []).filter((x) => x.id !== id);
+        saveState(state);
+        fullRender();
+      });
+    });
+
+    if (els.fcCategory) {
+      const prev = els.fcCategory.value;
+      els.fcCategory.innerHTML = (state.fixedCostCategories || [])
+        .map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`)
+        .join("");
+      if (prev && [...els.fcCategory.options].some((o) => o.value === prev)) els.fcCategory.value = prev;
+    }
+
+    els.fixedCostEntryTbody.innerHTML = "";
+    [...(state.fixedCostEntries || [])]
+      .sort((a, b) => -cmpDate(a.startDate, b.startDate) || -cmpDate(a.endDate, b.endDate))
+      .forEach((row) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td data-label="项目">${escapeHtml(fixedCostCategoryName(state, row.categoryId))}</td>
+          <td data-label="开始">${escapeHtml(row.startDate || "")}</td>
+          <td data-label="结束">${escapeHtml(row.endDate || "")}</td>
+          <td data-label="金额" class="lx-money">${money(row.amount)}</td>
+          <td data-label="备注">${escapeHtml(row.note || "")}</td>
+          <td data-label="操作" class="text-right">${lxIconDel(`data-fc-entry-del="${row.id}"`)}</td>`;
+        els.fixedCostEntryTbody.appendChild(tr);
+      });
+    els.fixedCostEntryTbody.querySelectorAll("[data-fc-entry-del]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const id = b.getAttribute("data-fc-entry-del");
+        if (!confirm("确定删除该条固定成本？")) return;
+        state.fixedCostEntries = (state.fixedCostEntries || []).filter((x) => x.id !== id);
+        saveState(state);
+        fullRender();
+      });
+    });
+  }
+
   function renderMasterDataTables() {
     if (!els.unitTbody || !els.productDefTbody || !els.customerDefTbody || !els.supplierDefTbody) return;
 
@@ -2041,11 +2348,19 @@
       });
     });
 
+    if (els.newProductDefUnit) {
+      const prev = els.newProductDefUnit.value;
+      const sel = (state.units || []).some((u) => u.id === prev) ? prev : defaultUnitId(state);
+      els.newProductDefUnit.innerHTML = optionsHtml(state.units || [], sel);
+    }
+
     els.productDefTbody.innerHTML = "";
     (state.productDefs || []).forEach((it) => {
       const tr = document.createElement("tr");
+      const uPick = it.unitId || defaultUnitId(state);
       tr.innerHTML = `
         <td data-label="商品名">${escapeHtml(it.name)}</td>
+        <td data-label="默认单位"><select class="lx-input max-w-[160px]" data-pd-unit="${escapeHtml(it.id)}">${optionsHtml(state.units || [], uPick)}</select></td>
         <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-pd-rename="${escapeHtml(it.id)}" placeholder="新名称" /></td>
         <td data-label="操作" class="text-right">
           <div class="flex flex-wrap justify-end gap-2">
@@ -2054,6 +2369,14 @@
           </div>
         </td>`;
       els.productDefTbody.appendChild(tr);
+    });
+    els.productDefTbody.querySelectorAll("[data-pd-unit]").forEach((sel) => {
+      sel.addEventListener("change", () => {
+        const id = sel.getAttribute("data-pd-unit");
+        const uId = sel.value || defaultUnitId(state);
+        state.productDefs = state.productDefs.map((x) => (x.id === id ? { ...x, unitId: uId } : x));
+        saveState(state);
+      });
     });
     els.productDefTbody.querySelectorAll("[data-pd-apply]").forEach((b) => {
       b.addEventListener("click", () => {
@@ -2281,6 +2604,7 @@
       });
     });
     renderMasterDataTables();
+    renderFixedCostTables();
   }
 
   function renderAnalytics() {
@@ -2292,10 +2616,12 @@
 
     const revenue = fs.reduce((a, s) => a + num(s.amount), 0);
     const cogs = fs.reduce((a, s) => a + num(s.costAtSale), 0);
-    const profit = revenue - cogs;
+    const fixedTotal = totalFixedCostForFilter(state, start, end);
+    const profit = revenue - cogs - fixedTotal;
     const margin = revenue > 0 ? (100 * profit) / revenue : 0;
     els.sumRevenue.textContent = money(revenue);
     els.sumCogs.textContent = money(cogs);
+    if (els.sumFixedCosts) els.sumFixedCosts.textContent = money(fixedTotal);
     els.sumProfit.textContent = money(profit);
     els.sumMargin.textContent = margin.toFixed(2) + "%";
 
@@ -2322,24 +2648,32 @@
       map.set(k, o);
     });
 
-    const keys = Array.from(map.keys()).sort();
+    const fixedByKey = fixedCostByPeriodKey(state, start, end, groupMode, fs, fp);
+    fixedByKey.forEach((amt, k) => {
+      if (!map.has(k)) map.set(k, { revenue: 0, cogs: 0, expense: 0 });
+    });
+
+    const keys = Array.from(new Set([...map.keys(), ...fixedByKey.keys()])).sort();
     els.profitGroupTbody.innerHTML = "";
     keys.forEach((k) => {
-      const o = map.get(k);
+      const o = map.get(k) || { revenue: 0, cogs: 0, expense: 0 };
       const rev = num(o.revenue);
       const cg = num(o.cogs);
-      const prof = rev - cg;
+      const fx = num(fixedByKey.get(k) || 0);
+      const prof = rev - cg - fx;
       const mar = rev > 0 ? (100 * prof) / rev : 0;
       const tr = document.createElement("tr");
       tr.innerHTML = `<td data-label="周期">${k}</td><td data-label="销售额" class="lx-money">${money(rev)}</td><td data-label="销售成本" class="lx-money">${money(
         cg
-      )}</td><td data-label="利润" class="lx-money">${money(prof)}</td><td data-label="利润率">${mar.toFixed(2)}%</td>`;
+      )}</td><td data-label="固定成本" class="lx-money">${money(fx)}</td><td data-label="利润" class="lx-money">${money(prof)}</td><td data-label="利润率">${mar.toFixed(
+        2
+      )}%</td>`;
       els.profitGroupTbody.appendChild(tr);
     });
 
-    const revA = keys.map((k) => num(map.get(k).revenue));
-    const expA = keys.map((k) => num(map.get(k).expense || 0));
-    const profA = keys.map((k) => num(map.get(k).revenue) - num(map.get(k).cogs));
+    const revA = keys.map((k) => num((map.get(k) || {}).revenue));
+    const expA = keys.map((k) => num((map.get(k) || {}).expense || 0) + num(fixedByKey.get(k) || 0));
+    const profA = keys.map((k) => num((map.get(k) || {}).revenue) - num((map.get(k) || {}).cogs) - num(fixedByKey.get(k) || 0));
     drawTrendChart(els.trendChart, keys, revA, expA, profA);
 
     const prodMap = new Map();
@@ -2434,7 +2768,7 @@
     };
     if (!row.product) return alert("请填写商品名称");
     ensureMasterDef(state, "supplierDefs", row.supplier);
-    ensureMasterDef(state, "productDefs", row.product);
+    ensureMasterDef(state, "productDefs", row.product, { unitId: row.unitId });
     state.purchases.push(row);
     saveState(state);
     els.pSupplier.value = "";
@@ -2480,7 +2814,7 @@
       paidAtSale,
       arReceiptAllocated: 0,
     };
-    ensureMasterDef(state, "productDefs", prod);
+    ensureMasterDef(state, "productDefs", prod, { unitId: row.unitId });
     if (customerName) ensureMasterDef(state, "customerDefs", customerName);
     state.sales.push(row);
     saveState(state);
@@ -2529,7 +2863,7 @@
     };
     if (!row.product) return alert("请填写商品");
     if (!row.reason) return alert("请填写原因");
-    ensureMasterDef(state, "productDefs", row.product);
+    ensureMasterDef(state, "productDefs", row.product, { unitId: row.unitId });
     state.adjustments.push(row);
     saveState(state);
     els.aProduct.value = "";
@@ -2548,7 +2882,7 @@
     if (!prod) return alert("请填写商品");
     const avail = stockAvailable(from, prod);
     if (qty > avail + 1e-6) return alert("源仓库存不足（可用 " + avail.toFixed(2) + "）");
-    ensureMasterDef(state, "productDefs", prod);
+    ensureMasterDef(state, "productDefs", prod, { unitId: (els.tUnit && els.tUnit.value) || defaultUnitId(state) });
     state.transfers.push({
       id: uid(),
       date: els.tDate.value,
@@ -2594,7 +2928,8 @@
       const name = String(els.newProductDef.value || "").trim();
       if (!name) return;
       if (defNameTaken(state, "productDefs", name)) return alert("该商品已在档案中");
-      state.productDefs.push({ id: uid(), name });
+      const uId = (els.newProductDefUnit && els.newProductDefUnit.value) || defaultUnitId(state);
+      state.productDefs.push({ id: uid(), name, unitId: uId });
       saveState(state);
       els.newProductDef.value = "";
       fullRender();
@@ -2621,6 +2956,40 @@
       state.supplierDefs.push({ id: uid(), name });
       saveState(state);
       els.newSupplierDef.value = "";
+      fullRender();
+    });
+  }
+
+  if (els.fixedCostAddCategoryForm) {
+    els.fixedCostAddCategoryForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const name = String(els.newFixedCostCategoryName.value || "").trim();
+      if (!name) return alert("请输入项目名称");
+      if ((state.fixedCostCategories || []).some((x) => String(x.name || "").trim() === name)) return alert("项目名称已存在");
+      if (!Array.isArray(state.fixedCostCategories)) state.fixedCostCategories = [];
+      state.fixedCostCategories.push({ id: uid(), name });
+      saveState(state);
+      els.newFixedCostCategoryName.value = "";
+      fullRender();
+    });
+  }
+  if (els.fixedCostEntryForm) {
+    els.fixedCostEntryForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      const categoryId = els.fcCategory && els.fcCategory.value;
+      const startDate = els.fcStart && els.fcStart.value;
+      const endDate = els.fcEnd && els.fcEnd.value;
+      const amount = num(els.fcAmount && els.fcAmount.value);
+      const note = els.fcNote ? String(els.fcNote.value || "").trim() : "";
+      if (!categoryId) return alert("请选择成本项目");
+      if (!startDate || !endDate) return alert("请选择开始与结束日期");
+      if (isoDayCompare(startDate, endDate) > 0) return alert("结束日期不能早于开始日期");
+      if (amount <= 0) return alert("金额须大于 0");
+      if (!Array.isArray(state.fixedCostEntries)) state.fixedCostEntries = [];
+      state.fixedCostEntries.push({ id: uid(), categoryId, startDate, endDate, amount, note });
+      saveState(state);
+      els.fcAmount.value = "";
+      if (els.fcNote) els.fcNote.value = "";
       fullRender();
     });
   }
@@ -2731,8 +3100,8 @@
     ];
     pairs.forEach(([inp, sel]) => {
       if (!inp || !sel) return;
-      inp.addEventListener("input", () => setSelectUnitIfValid(sel, latestUnitIdForProduct(state, inp.value)));
-      inp.addEventListener("change", () => setSelectUnitIfValid(sel, latestUnitIdForProduct(state, inp.value)));
+      inp.addEventListener("input", () => setSelectUnitIfValid(sel, resolvedUnitIdForProductInput(state, inp.value)));
+      inp.addEventListener("change", () => setSelectUnitIfValid(sel, resolvedUnitIdForProductInput(state, inp.value)));
     });
   }
   wireMainFormProductUnits();

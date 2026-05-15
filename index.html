@@ -364,27 +364,28 @@
         </form>
         <p class="lx-muted mt-4 text-[13px] leading-relaxed">下方<strong>商品销售统计</strong>与<strong>畅销榜</strong>与汇总卡片、趋势图、周期表共用<strong>开始日期、结束日期、仓库</strong>；修改日期、仓库或「趋势与利润粒度」后会自动刷新（也可点「查询统计」）。</p>
       </div>
-      <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">销售额</div><div class="lx-money mt-2 text-xl" id="sumRevenue">¥0.00</div></div>
         <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">销售成本</div><div class="lx-money mt-2 text-xl" id="sumCogs">¥0.00</div></div>
-        <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">利润</div><div class="lx-money mt-2 text-xl" id="sumProfit">¥0.00</div></div>
-        <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">利润率</div><div class="mt-2 text-xl font-bold tabular-nums text-slate-900 dark:text-white" id="sumMargin">0.00%</div></div>
+        <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">固定成本</div><div class="lx-money mt-2 text-xl" id="sumFixedCosts">¥0.00</div></div>
+        <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">利润</div><div class="lx-money mt-2 text-xl" id="sumProfit">¥0.00</div><div class="lx-muted mt-1 text-[11px] leading-snug">已扣销售成本与固定成本</div></div>
+        <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">利润率</div><div class="mt-2 text-xl font-bold tabular-nums text-slate-900 dark:text-white" id="sumMargin">0.00%</div><div class="lx-muted mt-1 text-[11px] leading-snug">相对销售额</div></div>
       </div>
-      <p class="lx-muted mt-2">趋势图（收入 / 支出 / 利润）与下方「周期」表均按上方<strong>趋势与利润粒度</strong>汇总；可切换按日、按周、按月、按季度、按年。</p>
+      <p class="lx-muted mt-2">趋势图与下方「周期」表按<strong>趋势与利润粒度</strong>汇总。固定成本按录入的<strong>日期区间</strong>均摊到每一天，再汇总到各周期；<strong>与仓库筛选无关</strong>（销售额与销售成本仍按仓库筛选）。橙色线为进货支出与固定成本之和。</p>
       <div class="lx-chart-card">
         <div class="lx-trend-chart-wrap">
           <canvas id="trendChart"></canvas>
         </div>
         <div class="mt-4 flex flex-wrap gap-6 text-sm text-slate-500 dark:text-slate-400">
-          <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-blue-600"></i>收入</span>
-          <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-amber-600"></i>支出</span>
-          <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-emerald-600"></i>利润</span>
+          <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-blue-600"></i>收入（销售额）</span>
+          <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-amber-600"></i>支出（进货+固定成本）</span>
+          <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-emerald-600"></i>利润（扣销售成本与固定成本）</span>
         </div>
       </div>
-      <p class="lx-muted mt-2">按所选粒度汇总的销售额、成本与利润</p>
+      <p class="lx-muted mt-2">按所选粒度汇总的销售额、成本、固定成本与利润（利润 = 销售额 − 销售成本 − 固定成本）</p>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>周期</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="profitGroupTbody"></tbody></table>
+          <table class="lx-table"><thead><tr><th>周期</th><th>销售额</th><th>销售成本</th><th>固定成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="profitGroupTbody"></tbody></table>
         </div>
       </div>
       <p class="lx-muted mt-2">商品销售统计（按上方日期与仓库）</p>
@@ -409,7 +410,7 @@
       </div>
       <div class="lx-card space-y-3">
         <h3 class="lx-section-title !mb-0">数据导出</h3>
-        <p class="lx-muted text-[13px] leading-relaxed">一键导出当前系统中的仓库、单位、商品/客户/供应商档案、进货、销售、收款、调拨、库存调整等全部业务数据，生成多工作表 Excel（.xlsx）。需能加载 SheetJS 脚本（联网首次打开页面）。</p>
+        <p class="lx-muted text-[13px] leading-relaxed">一键导出当前系统中的仓库、单位、商品/客户/供应商档案、<strong>固定成本</strong>、进货、销售、收款、调拨、库存调整等全部业务数据，生成多工作表 Excel（.xlsx）。需能加载 SheetJS 脚本（联网首次打开页面）。</p>
         <button type="button" id="exportAllExcelBtn" class="lx-btn-primary w-full sm:w-auto">一键下载全部数据（Excel）</button>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
@@ -428,9 +429,11 @@
       </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">单位管理</h3>
+          <h3 class="lx-section-title !mb-0">单位与商品档案</h3>
+          <p class="lx-muted mt-2 text-[13px] leading-relaxed">先维护<strong>计量单位</strong>列表；每个<strong>商品</strong>绑定一个默认单位。在进货、销售等单据中输入已建档商品名时，单位会按档案自动带出（无档案时仍按该商品在单据中的最近使用记录推断）。</p>
         </div>
         <div class="p-6">
+          <h4 class="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">单位管理</h4>
           <form id="unitForm" class="lx-form-grid">
             <div class="min-w-0"><label class="lx-label" for="newUnit">新单位名称</label><input id="newUnit" class="lx-input" placeholder="例如：箱" /></div>
             <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增单位</button></div>
@@ -439,19 +442,48 @@
         <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
           <table class="lx-table"><thead><tr><th>单位名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="unitTbody"></tbody></table>
         </div>
-      </div>
-      <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">商品档案</h3>
-        </div>
-        <div class="p-6">
+        <div class="border-t border-slate-100 p-6 dark:border-slate-800">
+          <h4 class="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">商品与默认单位</h4>
           <form id="productDefForm" class="lx-form-grid">
             <div class="min-w-0"><label class="lx-label" for="newProductDef">新商品名称</label><input id="newProductDef" class="lx-input" placeholder="建档后可在单据中联想" /></div>
+            <div class="min-w-0"><label class="lx-label" for="newProductDefUnit">默认单位</label><select id="newProductDefUnit" class="lx-input"></select></div>
             <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增商品</button></div>
           </form>
         </div>
         <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>商品名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="productDefTbody"></tbody></table>
+          <table class="lx-table"><thead><tr><th>商品名</th><th>默认单位</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="productDefTbody"></tbody></table>
+        </div>
+      </div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">固定成本</h3>
+          <p class="lx-muted mt-2 text-[13px] leading-relaxed">维护成本<strong>项目名称</strong>（默认含房租、水电、其它1、其它2，可改名或新增）；再按<strong>日期区间</strong>录入金额（例如 5 月 1 日～5 月 10 日水电 100 元）。系统按<strong>日历天均摊</strong>后，在<strong>统计分析</strong>中从利润里扣除。固定成本<strong>不按仓库分摊</strong>，仅按日期计入。</p>
+        </div>
+        <div class="p-6 space-y-4">
+          <div>
+            <h4 class="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">成本项目</h4>
+            <div class="lx-table-wrap border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
+              <table class="lx-table"><thead><tr><th>项目名称</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="fixedCostCategoryTbody"></tbody></table>
+            </div>
+            <form id="fixedCostAddCategoryForm" class="lx-form-grid mt-3">
+              <div class="min-w-0"><label class="lx-label" for="newFixedCostCategoryName">新增项目</label><input id="newFixedCostCategoryName" class="lx-input" placeholder="例如：物业费" /></div>
+              <div class="min-w-0 flex items-end"><button class="lx-btn-secondary w-full sm:w-auto" type="submit">添加项目</button></div>
+            </form>
+          </div>
+          <div>
+            <h4 class="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">按日期区间录入</h4>
+            <form id="fixedCostEntryForm" class="lx-form-grid">
+              <div class="min-w-0"><label class="lx-label" for="fcCategory">项目</label><select id="fcCategory" class="lx-input"></select></div>
+              <div class="min-w-0"><label class="lx-label" for="fcStart">开始日期</label><input type="date" id="fcStart" class="lx-input" /></div>
+              <div class="min-w-0"><label class="lx-label" for="fcEnd">结束日期</label><input type="date" id="fcEnd" class="lx-input" /></div>
+              <div class="min-w-0"><label class="lx-label" for="fcAmount">金额（元）</label><input type="number" id="fcAmount" class="lx-input" min="0.01" step="0.01" placeholder="例如：100" /></div>
+              <div class="lx-span-2 min-w-0"><label class="lx-label" for="fcNote">备注</label><input type="text" id="fcNote" class="lx-input" placeholder="可选" /></div>
+              <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">添加记录</button></div>
+            </form>
+          </div>
+        </div>
+        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
+          <table class="lx-table"><thead><tr><th>项目</th><th>开始</th><th>结束</th><th>金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="fixedCostEntryTbody"></tbody></table>
         </div>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
@@ -491,11 +523,11 @@
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260607"></script>
+  <script src="lingxin-ims-app.js?v=20260615"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./service-worker.js?v=20260607").catch(function (err) {
+        navigator.serviceWorker.register("./service-worker.js?v=20260615").catch(function (err) {
           console.log("SW 注册失败:", err);
         });
       });
