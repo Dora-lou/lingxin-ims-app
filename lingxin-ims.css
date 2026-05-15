@@ -27,20 +27,29 @@
   height: 100%;
 }
 
-/* 移动端：堆叠行布局（配合 data-label） */
+/* 移动端：堆叠行布局（配合 data-label）
+ * 不用 display:block 在 tbody/tr 上：部分 WebKit（尤其 iOS）会只渲染前几行后“消失”。 */
 @media (max-width: 720px) {
+  .lx-table-wrap table {
+    display: block;
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
   .lx-table-wrap table thead {
     display: none;
   }
-  .lx-table-wrap table,
-  .lx-table-wrap tbody,
-  .lx-table-wrap tr,
-  .lx-table-wrap td {
-    display: block;
+  .lx-table-wrap tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
     width: 100%;
   }
   .lx-table-wrap tr {
-    margin-bottom: 0.75rem;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    box-sizing: border-box;
     border-radius: 1rem;
     border: 1px solid rgb(226 232 240 / 0.9);
     padding: 0.5rem 0.25rem;

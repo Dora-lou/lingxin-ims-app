@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lingxin-ims-v5';
+const CACHE_NAME = 'lingxin-ims-v6';
 const ASSETS = [
   './',
   './index.html',
