@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="玲鑫进销存" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="theme-color" content="#2563eb" />
   <title>玲鑫建材进销存管理系统</title>
-  <link rel="manifest" href="manifest.webmanifest?v=20260608">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="玲鑫进销存">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="mobile-web-app-capable" content="yes">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="manifest" href="manifest.webmanifest?v=20260620" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="icons/icon-192.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -107,6 +109,15 @@
       .lx-record-block > summary::-webkit-details-marker {
         display: none;
       }
+      .lx-ios-install-banner {
+        @apply fixed inset-x-0 bottom-0 z-[10000] border-t border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-relaxed text-slate-800 shadow-[0_-8px_30px_rgba(15,23,42,0.12)] dark:border-blue-900 dark:bg-slate-900 dark:text-slate-100;
+        padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
+      }
+      @media (display-mode: standalone) {
+        body.lx-standalone {
+          padding-bottom: env(safe-area-inset-bottom);
+        }
+      }
       .lx-modal-shell .form-grid {
         @apply grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-5;
       }
@@ -122,6 +133,11 @@
   <link rel="stylesheet" href="lingxin-ims.css?v=20260603" />
 </head>
 <body class="min-h-screen bg-slate-50 antialiased transition-colors duration-300 dark:bg-slate-950">
+  <div id="lx-ios-install-banner" class="lx-ios-install-banner hidden" role="status" aria-live="polite">
+    <p class="font-semibold text-blue-800 dark:text-blue-300">当前是 Safari 网页模式（底部有网址栏）</p>
+    <p class="mt-1 text-slate-600 dark:text-slate-300">要用全屏、无网址：必须用 <strong>Safari</strong> 点底部分享 → <strong>添加到主屏幕</strong>，再从主屏幕图标打开（不要点书签、不要留在 Safari 里）。若已有旧图标，请先删掉再重新添加。</p>
+    <button type="button" id="lx-ios-install-dismiss" class="lx-btn-secondary mt-2 text-xs">知道了，本次不再提示</button>
+  </div>
   <div class="mx-auto max-w-6xl px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pb-16 lg:pt-10">
     <header class="lx-card mb-8 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
       <div class="min-w-0 space-y-1">
@@ -862,11 +878,39 @@
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260619"></script>
+  <script src="lingxin-ims-app.js?v=20260620"></script>
   <script>
+    (function () {
+      function isStandalone() {
+        return (
+          window.matchMedia("(display-mode: standalone)").matches ||
+          window.navigator.standalone === true
+        );
+      }
+      function isIOS() {
+        return (
+          /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
+        );
+      }
+      if (isStandalone()) {
+        document.body.classList.add("lx-standalone");
+        return;
+      }
+      if (!isIOS() || sessionStorage.getItem("lx_hide_ios_banner")) return;
+      var banner = document.getElementById("lx-ios-install-banner");
+      var dismiss = document.getElementById("lx-ios-install-dismiss");
+      if (banner) banner.classList.remove("hidden");
+      if (dismiss) {
+        dismiss.addEventListener("click", function () {
+          sessionStorage.setItem("lx_hide_ios_banner", "1");
+          if (banner) banner.classList.add("hidden");
+        });
+      }
+    })();
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./service-worker.js?v=20260619").catch(function (err) {
+        navigator.serviceWorker.register("./service-worker.js?v=20260620").catch(function (err) {
           console.log("SW 注册失败:", err);
         });
       });

@@ -1,9 +1,10 @@
-const CACHE_NAME = 'lingxin-ims-v18';
+const CACHE_NAME = 'lingxin-ims-v19';
 const ASSETS = [
   './',
   './index.html',
   './lingxin-ims.css',
   './lingxin-ims-app.js',
+  './manifest.json',
   './manifest.webmanifest',
   './icons/icon-192.png',
   './icons/icon-512.png',
@@ -31,6 +32,7 @@ function isShellAssetGet(req) {
     path.endsWith('tailwind.css') ||
     path.endsWith('lingxin-ims-app.js') ||
     path.endsWith('manifest.webmanifest') ||
+    path.endsWith('manifest.json') ||
     path.includes('/icons/')
   );
 }
