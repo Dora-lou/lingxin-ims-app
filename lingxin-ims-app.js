@@ -68,14 +68,26 @@
       receipts: [],
       settings: { backupReminderEnabled: true, lastBackupPromptAt: null },
       suggestions: { products: [], customers: [], suppliers: [] },
-      fixedCostCategories: [
-        { id: uid(), name: "房租" },
-        { id: uid(), name: "水电" },
-        { id: uid(), name: "其它1" },
-        { id: uid(), name: "其它2" },
-      ],
       fixedCostEntries: [],
     };
+  }
+
+  function migrateFixedCostEntriesToProjectField(s) {
+    const cats = s.fixedCostCategories || [];
+    (s.fixedCostEntries || []).forEach((e) => {
+      if (!e) return;
+      if (String(e.project || "").trim() !== "") {
+        delete e.categoryId;
+        return;
+      }
+      let proj = "";
+      if (e.categoryId) {
+        const c = cats.find((x) => x.id === e.categoryId);
+        proj = c ? String(c.name || "").trim() : "";
+      }
+      e.project = proj || "固定成本";
+      delete e.categoryId;
+    });
   }
 
   function loadRaw() {
@@ -107,15 +119,9 @@
     ["products", "customers", "suppliers"].forEach((k) => {
       if (!Array.isArray(s.suggestions[k])) s.suggestions[k] = [];
     });
-    if (!Array.isArray(s.fixedCostCategories) || !s.fixedCostCategories.length) {
-      s.fixedCostCategories = [
-        { id: uid(), name: "房租" },
-        { id: uid(), name: "水电" },
-        { id: uid(), name: "其它1" },
-        { id: uid(), name: "其它2" },
-      ];
-    }
     if (!Array.isArray(s.fixedCostEntries)) s.fixedCostEntries = [];
+    migrateFixedCostEntriesToProjectField(s);
+    delete s.fixedCostCategories;
     const defWh = s.warehouses[0].id;
     const defCat = s.categories[0].id;
     s.purchases = s.purchases.map((p) => ({
@@ -214,6 +220,17 @@
 
   function defaultUnitId(st) {
     return (st.units && st.units[0] && st.units[0].id) || "";
+  }
+
+  function ensureUnitByName(st, rawName) {
+    const t = String(rawName || "").trim();
+    if (!t) return defaultUnitId(st);
+    if (!Array.isArray(st.units)) st.units = [];
+    const found = st.units.find((x) => String(x.name || "").trim() === t);
+    if (found) return found.id;
+    const id = uid();
+    st.units.push({ id, name: t });
+    return id;
   }
 
   function defNameTaken(st, defsKey, name, exceptId) {
@@ -761,14 +778,10 @@
       (state.supplierDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name }))
     );
     appendSheet(
-      "固定成本项目",
-      (state.fixedCostCategories || []).map((c) => ({ 记录ID: c.id, 名称: c.name }))
-    );
-    appendSheet(
-      "固定成本明细",
+      "固定成本",
       (state.fixedCostEntries || []).map((e) => ({
         记录ID: e.id,
-        项目: fixedCostCategoryName(state, e.categoryId),
+        项目: String(e.project || "").trim() || "—",
         开始日期: e.startDate || "",
         结束日期: e.endDate || "",
         金额: num(e.amount),
@@ -1089,11 +1102,6 @@
 
   function totalFixedCostForFilter(state, filterStart, filterEnd) {
     return (state.fixedCostEntries || []).reduce((a, e) => a + fixedCostAmountInWindow(e, filterStart, filterEnd), 0);
-  }
-
-  function fixedCostCategoryName(st, categoryId) {
-    const c = (st.fixedCostCategories || []).find((x) => x.id === categoryId);
-    return c ? String(c.name || "").trim() || "—" : "—";
   }
 
   function dailyFixedAmountOnDate(state, dateISO) {
@@ -1442,14 +1450,10 @@
         { name: "客户档案", rows: (state.customerDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name })) },
         { name: "供应商档案", rows: (state.supplierDefs || []).map((x) => ({ 记录ID: x.id, 名称: x.name })) },
         {
-          name: "固定成本项目",
-          rows: (state.fixedCostCategories || []).map((c) => ({ 记录ID: c.id, 名称: c.name })),
-        },
-        {
-          name: "固定成本明细",
+          name: "固定成本",
           rows: (state.fixedCostEntries || []).map((e) => ({
             记录ID: e.id,
-            项目: fixedCostCategoryName(state, e.categoryId),
+            项目: String(e.project || "").trim() || "—",
             开始日期: e.startDate || "",
             结束日期: e.endDate || "",
             金额: num(e.amount),
@@ -1687,12 +1691,9 @@
     warehouseForm: document.getElementById("warehouseForm"),
     newWarehouse: document.getElementById("newWarehouse"),
     warehouseTbody: document.getElementById("warehouseTbody"),
-    unitForm: document.getElementById("unitForm"),
-    newUnit: document.getElementById("newUnit"),
-    unitTbody: document.getElementById("unitTbody"),
     productDefForm: document.getElementById("productDefForm"),
     newProductDef: document.getElementById("newProductDef"),
-    newProductDefUnit: document.getElementById("newProductDefUnit"),
+    newProductDefUnitName: document.getElementById("newProductDefUnitName"),
     productDefTbody: document.getElementById("productDefTbody"),
     customerDefForm: document.getElementById("customerDefForm"),
     newCustomerDef: document.getElementById("newCustomerDef"),
@@ -1700,12 +1701,9 @@
     supplierDefForm: document.getElementById("supplierDefForm"),
     newSupplierDef: document.getElementById("newSupplierDef"),
     supplierDefTbody: document.getElementById("supplierDefTbody"),
-    fixedCostCategoryTbody: document.getElementById("fixedCostCategoryTbody"),
     fixedCostEntryTbody: document.getElementById("fixedCostEntryTbody"),
-    fixedCostAddCategoryForm: document.getElementById("fixedCostAddCategoryForm"),
-    newFixedCostCategoryName: document.getElementById("newFixedCostCategoryName"),
     fixedCostEntryForm: document.getElementById("fixedCostEntryForm"),
-    fcCategory: document.getElementById("fcCategory"),
+    fcNewProject: document.getElementById("fcNewProject"),
     fcStart: document.getElementById("fcStart"),
     fcEnd: document.getElementById("fcEnd"),
     fcAmount: document.getElementById("fcAmount"),
@@ -2226,74 +2224,54 @@
   }
 
   function renderFixedCostTables() {
-    if (!els.fixedCostCategoryTbody || !els.fixedCostEntryTbody) return;
-
-    els.fixedCostCategoryTbody.innerHTML = "";
-    (state.fixedCostCategories || []).forEach((c) => {
-      const used = (state.fixedCostEntries || []).some((e) => e.categoryId === c.id);
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td data-label="项目名称">${escapeHtml(c.name)}</td>
-        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-fc-cat-rename="${escapeHtml(c.id)}" placeholder="新名称" /></td>
-        <td data-label="操作" class="text-right">
-          <div class="flex flex-wrap justify-end gap-2">
-            <button type="button" class="lx-btn-secondary text-xs" data-fc-cat-apply="${escapeHtml(c.id)}">保存名称</button>
-            ${
-              (state.fixedCostCategories || []).length <= 1
-                ? ""
-                : lxIconDel(`data-fc-cat-del="${c.id}" data-fc-cat-used="${used ? "1" : "0"}"`)
-            }
-          </div>
-        </td>`;
-      els.fixedCostCategoryTbody.appendChild(tr);
-    });
-    els.fixedCostCategoryTbody.querySelectorAll("[data-fc-cat-apply]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const id = b.getAttribute("data-fc-cat-apply");
-        const inp = els.fixedCostCategoryTbody.querySelector('[data-fc-cat-rename="' + id + '"]');
-        const newName = String(inp.value || "").trim();
-        if (!newName) return alert("名称不能为空");
-        if ((state.fixedCostCategories || []).some((x) => x.id !== id && String(x.name || "").trim() === newName))
-          return alert("项目名称已存在");
-        state.fixedCostCategories = (state.fixedCostCategories || []).map((x) => (x.id === id ? { ...x, name: newName } : x));
-        saveState(state);
-        fullRender();
-      });
-    });
-    els.fixedCostCategoryTbody.querySelectorAll("[data-fc-cat-del]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const id = b.getAttribute("data-fc-cat-del");
-        if (b.getAttribute("data-fc-cat-used") === "1") return alert("该项目下仍有固定成本记录，请先删除或修改相关记录。");
-        if ((state.fixedCostCategories || []).length <= 1) return alert("至少保留一个成本项目");
-        if (!confirm("确定删除该成本项目？")) return;
-        state.fixedCostCategories = (state.fixedCostCategories || []).filter((x) => x.id !== id);
-        saveState(state);
-        fullRender();
-      });
-    });
-
-    if (els.fcCategory) {
-      const prev = els.fcCategory.value;
-      els.fcCategory.innerHTML = (state.fixedCostCategories || [])
-        .map((c) => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}</option>`)
-        .join("");
-      if (prev && [...els.fcCategory.options].some((o) => o.value === prev)) els.fcCategory.value = prev;
-    }
+    if (!els.fixedCostEntryTbody) return;
 
     els.fixedCostEntryTbody.innerHTML = "";
     [...(state.fixedCostEntries || [])]
       .sort((a, b) => -cmpDate(a.startDate, b.startDate) || -cmpDate(a.endDate, b.endDate))
       .forEach((row) => {
+        const rid = escapeHtml(row.id);
+        const proj = String(row.project || "").trim();
         const tr = document.createElement("tr");
         tr.innerHTML = `
-          <td data-label="项目">${escapeHtml(fixedCostCategoryName(state, row.categoryId))}</td>
-          <td data-label="开始">${escapeHtml(row.startDate || "")}</td>
-          <td data-label="结束">${escapeHtml(row.endDate || "")}</td>
-          <td data-label="金额" class="lx-money">${money(row.amount)}</td>
-          <td data-label="备注">${escapeHtml(row.note || "")}</td>
-          <td data-label="操作" class="text-right">${lxIconDel(`data-fc-entry-del="${row.id}"`)}</td>`;
+          <td data-label="项目"><input type="text" class="lx-input min-w-[96px]" data-fc-inp="project" value="${escapeHtml(proj)}" /></td>
+          <td data-label="开始"><input type="date" class="lx-input min-w-[9rem]" data-fc-inp="start" value="${escapeHtml(row.startDate || "")}" /></td>
+          <td data-label="结束"><input type="date" class="lx-input min-w-[9rem]" data-fc-inp="end" value="${escapeHtml(row.endDate || "")}" /></td>
+          <td data-label="金额"><input type="number" class="lx-input max-w-[120px]" data-fc-inp="amount" min="0.01" step="0.01" value="${num(row.amount)}" /></td>
+          <td data-label="备注"><input type="text" class="lx-input min-w-[80px]" data-fc-inp="note" value="${escapeHtml(row.note || "")}" /></td>
+          <td data-label="操作" class="text-right">
+            <div class="flex flex-wrap justify-end gap-2">
+              <button type="button" class="lx-btn-secondary text-xs" data-fc-save="${rid}">保存</button>
+              ${lxIconDel(`data-fc-entry-del="${row.id}"`)}
+            </div>
+          </td>`;
         els.fixedCostEntryTbody.appendChild(tr);
       });
+    els.fixedCostEntryTbody.querySelectorAll("[data-fc-save]").forEach((b) => {
+      b.addEventListener("click", () => {
+        const rowId = b.getAttribute("data-fc-save");
+        const tr = b.closest("tr");
+        if (!tr) return;
+        function g(f) {
+          const el = tr.querySelector('[data-fc-inp="' + f + '"]');
+          return el ? el.value : "";
+        }
+        const project = String(g("project") || "").trim();
+        const startDate = String(g("start") || "").trim();
+        const endDate = String(g("end") || "").trim();
+        const amount = num(g("amount"));
+        const note = String(g("note") || "").trim();
+        if (!project) return alert("请填写项目（如房租、水电）");
+        if (!startDate || !endDate) return alert("请选择开始与结束日期");
+        if (isoDayCompare(startDate, endDate) > 0) return alert("结束日期不能早于开始日期");
+        if (amount <= 0) return alert("金额须大于 0");
+        state.fixedCostEntries = (state.fixedCostEntries || []).map((x) =>
+          x.id === rowId ? { ...x, project, startDate, endDate, amount, note } : x
+        );
+        saveState(state);
+        fullRender();
+      });
+    });
     els.fixedCostEntryTbody.querySelectorAll("[data-fc-entry-del]").forEach((b) => {
       b.addEventListener("click", () => {
         const id = b.getAttribute("data-fc-entry-del");
@@ -2306,62 +2284,16 @@
   }
 
   function renderMasterDataTables() {
-    if (!els.unitTbody || !els.productDefTbody || !els.customerDefTbody || !els.supplierDefTbody) return;
-
-    els.unitTbody.innerHTML = "";
-    (state.units || []).forEach((u) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td data-label="单位名">${escapeHtml(u.name)}</td>
-        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-un-rename="${escapeHtml(u.id)}" placeholder="新名称" /></td>
-        <td data-label="操作" class="text-right">
-          <div class="flex flex-wrap justify-end gap-2">
-            <button type="button" class="lx-btn-secondary text-xs" data-un-apply="${escapeHtml(u.id)}">保存名称</button>
-            ${lxIconDel(`data-un-del="${u.id}"`)}
-          </div>
-        </td>`;
-      els.unitTbody.appendChild(tr);
-    });
-    els.unitTbody.querySelectorAll("[data-un-apply]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const id = b.getAttribute("data-un-apply");
-        const inp = els.unitTbody.querySelector('[data-un-rename="' + id + '"]');
-        const name = String(inp.value || "").trim();
-        if (!name) return alert("名称不能为空");
-        if (state.units.some((x) => x.id !== id && String(x.name || "").trim() === name)) return alert("单位名称已存在");
-        state.units = state.units.map((x) => (x.id === id ? { ...x, name } : x));
-        saveState(state);
-        fullRender();
-      });
-    });
-    els.unitTbody.querySelectorAll("[data-un-del]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const id = b.getAttribute("data-un-del");
-        if (state.units.length <= 1) return alert("至少保留一个单位");
-        const rest = state.units.filter((x) => x.id !== id);
-        const fallback = rest[0].id;
-        if (!confirm("确定删除该单位？已选此单位的单据将改用「" + unitName(state, fallback) + "」。")) return;
-        reassignUnitIdEverywhere(state, id, fallback);
-        state.units = rest;
-        saveState(state);
-        fullRender();
-      });
-    });
-
-    if (els.newProductDefUnit) {
-      const prev = els.newProductDefUnit.value;
-      const sel = (state.units || []).some((u) => u.id === prev) ? prev : defaultUnitId(state);
-      els.newProductDefUnit.innerHTML = optionsHtml(state.units || [], sel);
-    }
+    if (!els.productDefTbody || !els.customerDefTbody || !els.supplierDefTbody) return;
 
     els.productDefTbody.innerHTML = "";
     (state.productDefs || []).forEach((it) => {
       const tr = document.createElement("tr");
       const uPick = it.unitId || defaultUnitId(state);
       tr.innerHTML = `
-        <td data-label="商品名">${escapeHtml(it.name)}</td>
-        <td data-label="默认单位"><select class="lx-input max-w-[160px]" data-pd-unit="${escapeHtml(it.id)}">${optionsHtml(state.units || [], uPick)}</select></td>
-        <td data-label="重命名"><input type="text" class="lx-input max-w-[200px]" data-pd-rename="${escapeHtml(it.id)}" placeholder="新名称" /></td>
+        <td data-label="商品">${escapeHtml(it.name)}</td>
+        <td data-label="单位"><select class="lx-input max-w-[160px]" data-pd-unit="${escapeHtml(it.id)}">${optionsHtml(state.units || [], uPick)}</select></td>
+        <td data-label="重命名商品"><input type="text" class="lx-input max-w-[200px]" data-pd-rename="${escapeHtml(it.id)}" placeholder="新名称" /></td>
         <td data-label="操作" class="text-right">
           <div class="flex flex-wrap justify-end gap-2">
             <button type="button" class="lx-btn-secondary text-xs" data-pd-apply="${escapeHtml(it.id)}">保存名称</button>
@@ -2376,6 +2308,7 @@
         const uId = sel.value || defaultUnitId(state);
         state.productDefs = state.productDefs.map((x) => (x.id === id ? { ...x, unitId: uId } : x));
         saveState(state);
+        fullRender();
       });
     });
     els.productDefTbody.querySelectorAll("[data-pd-apply]").forEach((b) => {
@@ -2910,28 +2843,18 @@
     fullRender();
   });
 
-  if (els.unitForm) {
-    els.unitForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const name = String(els.newUnit.value || "").trim();
-      if (!name) return;
-      if ((state.units || []).some((x) => String(x.name || "").trim() === name)) return alert("单位已存在");
-      state.units.push({ id: uid(), name });
-      saveState(state);
-      els.newUnit.value = "";
-      fullRender();
-    });
-  }
   if (els.productDefForm) {
     els.productDefForm.addEventListener("submit", (e) => {
       e.preventDefault();
       const name = String(els.newProductDef.value || "").trim();
       if (!name) return;
       if (defNameTaken(state, "productDefs", name)) return alert("该商品已在档案中");
-      const uId = (els.newProductDefUnit && els.newProductDefUnit.value) || defaultUnitId(state);
+      const unitText = els.newProductDefUnitName ? String(els.newProductDefUnitName.value || "").trim() : "";
+      const uId = ensureUnitByName(state, unitText);
       state.productDefs.push({ id: uid(), name, unitId: uId });
       saveState(state);
       els.newProductDef.value = "";
+      if (els.newProductDefUnitName) els.newProductDefUnitName.value = "";
       fullRender();
     });
   }
@@ -2960,34 +2883,22 @@
     });
   }
 
-  if (els.fixedCostAddCategoryForm) {
-    els.fixedCostAddCategoryForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const name = String(els.newFixedCostCategoryName.value || "").trim();
-      if (!name) return alert("请输入项目名称");
-      if ((state.fixedCostCategories || []).some((x) => String(x.name || "").trim() === name)) return alert("项目名称已存在");
-      if (!Array.isArray(state.fixedCostCategories)) state.fixedCostCategories = [];
-      state.fixedCostCategories.push({ id: uid(), name });
-      saveState(state);
-      els.newFixedCostCategoryName.value = "";
-      fullRender();
-    });
-  }
   if (els.fixedCostEntryForm) {
     els.fixedCostEntryForm.addEventListener("submit", (e) => {
       e.preventDefault();
-      const categoryId = els.fcCategory && els.fcCategory.value;
+      const project = els.fcNewProject ? String(els.fcNewProject.value || "").trim() : "";
       const startDate = els.fcStart && els.fcStart.value;
       const endDate = els.fcEnd && els.fcEnd.value;
       const amount = num(els.fcAmount && els.fcAmount.value);
       const note = els.fcNote ? String(els.fcNote.value || "").trim() : "";
-      if (!categoryId) return alert("请选择成本项目");
+      if (!project) return alert("请填写项目（如房租、水电）");
       if (!startDate || !endDate) return alert("请选择开始与结束日期");
       if (isoDayCompare(startDate, endDate) > 0) return alert("结束日期不能早于开始日期");
       if (amount <= 0) return alert("金额须大于 0");
       if (!Array.isArray(state.fixedCostEntries)) state.fixedCostEntries = [];
-      state.fixedCostEntries.push({ id: uid(), categoryId, startDate, endDate, amount, note });
+      state.fixedCostEntries.push({ id: uid(), project, startDate, endDate, amount, note });
       saveState(state);
+      if (els.fcNewProject) els.fcNewProject.value = "";
       els.fcAmount.value = "";
       if (els.fcNote) els.fcNote.value = "";
       fullRender();

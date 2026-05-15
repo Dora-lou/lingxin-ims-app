@@ -429,61 +429,18 @@
       </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">单位与商品档案</h3>
-          <p class="lx-muted mt-2 text-[13px] leading-relaxed">先维护<strong>计量单位</strong>列表；每个<strong>商品</strong>绑定一个默认单位。在进货、销售等单据中输入已建档商品名时，单位会按档案自动带出（无档案时仍按该商品在单据中的最近使用记录推断）。</p>
+          <h3 class="lx-section-title !mb-0">商品与单位</h3>
+          <p class="lx-muted mt-2 text-[13px] leading-relaxed">一次填写<strong>商品</strong>和<strong>单位</strong>即可添加；填<strong>新单位名称</strong>时会自动加入单位列表（与已有名称相同则复用）。下面列表中可修改商品名称，或从下拉框更换单位。进货/销售里输入已建档商品名时会自动带出单位。</p>
         </div>
         <div class="p-6">
-          <h4 class="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">单位管理</h4>
-          <form id="unitForm" class="lx-form-grid">
-            <div class="min-w-0"><label class="lx-label" for="newUnit">新单位名称</label><input id="newUnit" class="lx-input" placeholder="例如：箱" /></div>
-            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增单位</button></div>
-          </form>
-        </div>
-        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>单位名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="unitTbody"></tbody></table>
-        </div>
-        <div class="border-t border-slate-100 p-6 dark:border-slate-800">
-          <h4 class="mb-3 text-sm font-semibold text-slate-800 dark:text-slate-100">商品与默认单位</h4>
           <form id="productDefForm" class="lx-form-grid">
-            <div class="min-w-0"><label class="lx-label" for="newProductDef">新商品名称</label><input id="newProductDef" class="lx-input" placeholder="建档后可在单据中联想" /></div>
-            <div class="min-w-0"><label class="lx-label" for="newProductDefUnit">默认单位</label><select id="newProductDefUnit" class="lx-input"></select></div>
-            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增商品</button></div>
+            <div class="min-w-0"><label class="lx-label" for="newProductDef">商品名称</label><input id="newProductDef" class="lx-input" placeholder="例如：垃圾袋" /></div>
+            <div class="min-w-0"><label class="lx-label" for="newProductDefUnitName">单位</label><input id="newProductDefUnitName" class="lx-input" placeholder="例如：件、箱、米" /></div>
+            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">添加</button></div>
           </form>
         </div>
         <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>商品名</th><th>默认单位</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="productDefTbody"></tbody></table>
-        </div>
-      </div>
-      <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">固定成本</h3>
-          <p class="lx-muted mt-2 text-[13px] leading-relaxed">维护成本<strong>项目名称</strong>（默认含房租、水电、其它1、其它2，可改名或新增）；再按<strong>日期区间</strong>录入金额（例如 5 月 1 日～5 月 10 日水电 100 元）。系统按<strong>日历天均摊</strong>后，在<strong>统计分析</strong>中从利润里扣除。固定成本<strong>不按仓库分摊</strong>，仅按日期计入。</p>
-        </div>
-        <div class="p-6 space-y-4">
-          <div>
-            <h4 class="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">成本项目</h4>
-            <div class="lx-table-wrap border border-slate-100 dark:border-slate-800 rounded-lg overflow-hidden">
-              <table class="lx-table"><thead><tr><th>项目名称</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="fixedCostCategoryTbody"></tbody></table>
-            </div>
-            <form id="fixedCostAddCategoryForm" class="lx-form-grid mt-3">
-              <div class="min-w-0"><label class="lx-label" for="newFixedCostCategoryName">新增项目</label><input id="newFixedCostCategoryName" class="lx-input" placeholder="例如：物业费" /></div>
-              <div class="min-w-0 flex items-end"><button class="lx-btn-secondary w-full sm:w-auto" type="submit">添加项目</button></div>
-            </form>
-          </div>
-          <div>
-            <h4 class="mb-2 text-sm font-semibold text-slate-800 dark:text-slate-100">按日期区间录入</h4>
-            <form id="fixedCostEntryForm" class="lx-form-grid">
-              <div class="min-w-0"><label class="lx-label" for="fcCategory">项目</label><select id="fcCategory" class="lx-input"></select></div>
-              <div class="min-w-0"><label class="lx-label" for="fcStart">开始日期</label><input type="date" id="fcStart" class="lx-input" /></div>
-              <div class="min-w-0"><label class="lx-label" for="fcEnd">结束日期</label><input type="date" id="fcEnd" class="lx-input" /></div>
-              <div class="min-w-0"><label class="lx-label" for="fcAmount">金额（元）</label><input type="number" id="fcAmount" class="lx-input" min="0.01" step="0.01" placeholder="例如：100" /></div>
-              <div class="lx-span-2 min-w-0"><label class="lx-label" for="fcNote">备注</label><input type="text" id="fcNote" class="lx-input" placeholder="可选" /></div>
-              <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">添加记录</button></div>
-            </form>
-          </div>
-        </div>
-        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>项目</th><th>开始</th><th>结束</th><th>金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="fixedCostEntryTbody"></tbody></table>
+          <table class="lx-table"><thead><tr><th>商品</th><th>单位</th><th>重命名商品</th><th>操作</th></tr></thead><tbody id="productDefTbody"></tbody></table>
         </div>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
@@ -514,6 +471,25 @@
           <table class="lx-table"><thead><tr><th>供应商名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="supplierDefTbody"></tbody></table>
         </div>
       </div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">固定成本</h3>
+          <p class="lx-muted mt-2 text-[13px] leading-relaxed">按<strong>日期区间</strong>录入金额；<strong>项目</strong>直接填写（如房租、水电）。金额按日历天均摊后计入<strong>统计分析</strong>利润；与仓库筛选无关。</p>
+        </div>
+        <div class="p-6">
+          <form id="fixedCostEntryForm" class="lx-form-grid">
+            <div class="min-w-0"><label class="lx-label" for="fcNewProject">项目</label><input id="fcNewProject" class="lx-input" placeholder="例如：水电、房租" /></div>
+            <div class="min-w-0"><label class="lx-label" for="fcStart">开始日期</label><input type="date" id="fcStart" class="lx-input" /></div>
+            <div class="min-w-0"><label class="lx-label" for="fcEnd">结束日期</label><input type="date" id="fcEnd" class="lx-input" /></div>
+            <div class="min-w-0"><label class="lx-label" for="fcAmount">金额（元）</label><input type="number" id="fcAmount" class="lx-input" min="0.01" step="0.01" placeholder="例如：100" /></div>
+            <div class="lx-span-2 min-w-0"><label class="lx-label" for="fcNote">备注</label><input type="text" id="fcNote" class="lx-input" placeholder="可选" /></div>
+            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">添加</button></div>
+          </form>
+        </div>
+        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
+          <table class="lx-table"><thead><tr><th>项目</th><th>开始</th><th>结束</th><th>金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="fixedCostEntryTbody"></tbody></table>
+        </div>
+      </div>
     </section>
 
     <datalist id="productList"></datalist>
@@ -523,11 +499,11 @@
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260615"></script>
+  <script src="lingxin-ims-app.js?v=20260617"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./service-worker.js?v=20260615").catch(function (err) {
+        navigator.serviceWorker.register("./service-worker.js?v=20260617").catch(function (err) {
           console.log("SW 注册失败:", err);
         });
       });
