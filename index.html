@@ -101,6 +101,12 @@
       .lx-chart-card {
         @apply rounded-2xl border border-slate-200/90 bg-white p-5 shadow-soft dark:border-slate-700 dark:bg-slate-900/90;
       }
+      .lx-record-block > summary {
+        list-style: none;
+      }
+      .lx-record-block > summary::-webkit-details-marker {
+        display: none;
+      }
       .lx-modal-shell .form-grid {
         @apply grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-x-5 sm:gap-y-5;
       }
@@ -164,26 +170,39 @@
           <div class="lx-span-2 min-w-0"><label class="lx-label" for="purchaseSearch">搜索商品</label><input id="purchaseSearch" class="lx-input" placeholder="关键字" /></div>
         </form>
       </div>
-      <div class="lx-card flex flex-col gap-3 border-slate-200 p-4 dark:border-slate-700 sm:flex-row sm:flex-wrap sm:items-center">
+      <details class="lx-card lx-record-block !p-0 overflow-hidden" open>
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <span class="lx-section-title !mb-0">进货记录</span>
+          <span class="text-xs text-slate-400 shrink-0">展开 / 收起表格</span>
+        </summary>
+        <div>
+      <div class="flex flex-col gap-3 border-b border-slate-100 p-4 dark:border-slate-800 sm:flex-row sm:flex-wrap sm:items-center">
         <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
           <input type="checkbox" id="purchaseSelectAll" class="h-4 w-4 rounded border-slate-300 text-blue-600" />
           全选当前筛选结果
         </label>
         <button type="button" id="purchaseBatchDelBtn" class="lx-btn-outline text-sm">删除所选</button>
         <span id="purchasePageInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+        <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+          <select id="purchasePageSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="purchases">
+            <option value="10">10</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
         <div class="flex flex-wrap gap-2 sm:ml-auto">
-          <button type="button" id="purchasePagePrev" class="lx-btn-secondary text-sm">上一页</button>
-          <button type="button" id="purchasePageNext" class="lx-btn-secondary text-sm">下一页</button>
+          <button type="button" id="purchasePagePrev" class="lx-btn-secondary text-sm" data-list-pager-key="purchases" data-list-pager-dir="prev">上一页</button>
+          <button type="button" id="purchasePageNext" class="lx-btn-secondary text-sm" data-list-pager-key="purchases" data-list-pager-dir="next">下一页</button>
         </div>
       </div>
-      <div class="lx-card !p-0 overflow-hidden">
-        <div class="lx-table-wrap border-0 shadow-none">
+      <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table">
             <thead><tr><th class="w-10 pr-0"><span class="sr-only">多选</span></th><th>日期</th><th>仓库</th><th>供应商</th><th>商品</th><th>数量</th><th>单价</th><th>小计</th><th>操作</th></tr></thead>
             <tbody id="purchaseTbody"></tbody>
           </table>
         </div>
-      </div>
+        </div>
+      </details>
     </section>
 
     <section id="tab-sales" class="panel hidden space-y-6">
@@ -214,26 +233,39 @@
           <div class="lx-span-2 min-w-0"><label class="lx-label" for="salesSearch">搜索商品</label><input id="salesSearch" class="lx-input" placeholder="关键字" /></div>
         </form>
       </div>
-      <div class="lx-card flex flex-col gap-3 border-slate-200 p-4 dark:border-slate-700 sm:flex-row sm:flex-wrap sm:items-center">
+      <details class="lx-card lx-record-block !p-0 overflow-hidden" open>
+        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <span class="lx-section-title !mb-0">销售记录</span>
+          <span class="text-xs text-slate-400 shrink-0">展开 / 收起表格</span>
+        </summary>
+        <div>
+      <div class="flex flex-col gap-3 border-b border-slate-100 p-4 dark:border-slate-800 sm:flex-row sm:flex-wrap sm:items-center">
         <label class="flex cursor-pointer items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
           <input type="checkbox" id="salesSelectAll" class="h-4 w-4 rounded border-slate-300 text-blue-600" />
           全选当前筛选结果
         </label>
         <button type="button" id="salesBatchDelBtn" class="lx-btn-outline text-sm">删除所选</button>
         <span id="salesPageInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+        <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+          <select id="salesPageSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="sales">
+            <option value="10">10</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+        </label>
         <div class="flex flex-wrap gap-2 sm:ml-auto">
-          <button type="button" id="salesPagePrev" class="lx-btn-secondary text-sm">上一页</button>
-          <button type="button" id="salesPageNext" class="lx-btn-secondary text-sm">下一页</button>
+          <button type="button" id="salesPagePrev" class="lx-btn-secondary text-sm" data-list-pager-key="sales" data-list-pager-dir="prev">上一页</button>
+          <button type="button" id="salesPageNext" class="lx-btn-secondary text-sm" data-list-pager-key="sales" data-list-pager-dir="next">下一页</button>
         </div>
       </div>
-      <div class="lx-card !p-0 overflow-hidden">
-        <div class="lx-table-wrap border-0 shadow-none">
+      <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table">
             <thead><tr><th class="w-10 pr-0"><span class="sr-only">多选</span></th><th>日期</th><th>仓库</th><th>商品</th><th>付款</th><th>客户</th><th>数量</th><th>售价</th><th>成本</th><th>小计</th><th>已收</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
             <tbody id="salesTbody"></tbody>
           </table>
         </div>
-      </div>
+        </div>
+      </details>
     </section>
 
     <section id="tab-receivables" class="panel hidden space-y-6">
@@ -263,36 +295,112 @@
         </form>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">客户欠款汇总</h3>
-        </div>
-        <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>客户</th><th>应收余额</th></tr></thead><tbody id="arSummaryTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+            <h3 class="lx-section-title !mb-0">客户欠款汇总</h3>
+            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="arSummaryPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="arSummaryPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="arSummary">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="arSummaryPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="arSummary" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="arSummaryPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="arSummary" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>客户</th><th>应收余额</th></tr></thead><tbody id="arSummaryTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">赊销明细（未结清）</h3>
-        </div>
-        <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>剩余欠款</th><th>已收款</th></tr></thead><tbody id="arCreditTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+            <h3 class="lx-section-title !mb-0">赊销明细（未结清）</h3>
+            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="arCreditPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="arCreditPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="arCredit">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="arCreditPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="arCredit" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="arCreditPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="arCredit" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>剩余欠款</th><th>已收款</th></tr></thead><tbody id="arCreditTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">已收款（已结清）</h3>
-        </div>
-        <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>手动结清</th><th>已收合计</th></tr></thead><tbody id="arPaidTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+            <h3 class="lx-section-title !mb-0">已收款（已结清）</h3>
+            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="arPaidPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="arPaidPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="arPaid">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="arPaidPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="arPaid" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="arPaidPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="arPaid" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>手动结清</th><th>已收合计</th></tr></thead><tbody id="arPaidTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">收款记录</h3>
-        </div>
-        <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="receiptTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+            <h3 class="lx-section-title !mb-0">收款记录</h3>
+            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="receiptPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="receiptPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="receipts">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="receiptPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="receipts" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="receiptPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="receipts" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="receiptTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -333,28 +441,85 @@
         <div class="min-w-0 max-w-md"><label class="lx-label" for="invWarehouseFilter">库存查看仓库</label><select id="invWarehouseFilter"><option value="">全部仓库</option></select></div>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <p class="lx-muted">当前库存（按仓库）</p>
-        </div>
-        <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>仓库</th><th>商品</th><th>库存数量</th><th>库存均价</th><th>库存成本</th></tr></thead><tbody id="inventoryTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+            <p class="lx-muted !mb-0">当前库存（按仓库）</p>
+            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="inventoryPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="inventoryPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="inventory">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="inventoryPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="inventory" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="inventoryPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="inventory" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>仓库</th><th>商品</th><th>库存数量</th><th>库存均价</th><th>库存成本</th></tr></thead><tbody id="inventoryTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <p class="lx-muted">调拨记录</p>
-        </div>
-        <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>日期</th><th>商品</th><th>数量</th><th>从</th><th>到</th><th>备注</th><th>操作</th></tr></thead><tbody id="transferTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+            <p class="lx-muted !mb-0">调拨记录</p>
+            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="transferPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="transferPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="transfers">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="transferPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="transfers" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="transferPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="transfers" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>日期</th><th>商品</th><th>数量</th><th>从</th><th>到</th><th>备注</th><th>操作</th></tr></thead><tbody id="transferTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <p class="lx-muted">库存调整记录</p>
-        </div>
-        <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>调整数量</th><th>原因</th><th>操作</th></tr></thead><tbody id="adjustTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+            <p class="lx-muted !mb-0">库存调整记录</p>
+            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="adjustPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="adjustPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="adjustments">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="adjustPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="adjustments" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="adjustPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="adjustments" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>调整数量</th><th>原因</th><th>操作</th></tr></thead><tbody id="adjustTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -398,22 +563,87 @@
       </div>
       <p class="lx-muted mt-2">按所选粒度汇总的销售额、成本、固定成本与利润（利润 = 销售额 − 销售成本 − 固定成本）</p>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>周期</th><th>销售额</th><th>销售成本</th><th>固定成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="profitGroupTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+            <span class="lx-section-title !mb-0">周期利润表</span>
+            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="profitGroupPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="profitGroupPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="profitGroup">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="profitGroupPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="profitGroup" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="profitGroupPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="profitGroup" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>周期</th><th>销售额</th><th>销售成本</th><th>固定成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="profitGroupTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <p class="lx-muted mt-2">商品销售统计（按上方日期与仓库）</p>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>商品</th><th>进货量</th><th>销售量</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="productStatsTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+            <span class="lx-section-title !mb-0">商品销售统计</span>
+            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="productStatsPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="productStatsPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="productStats">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="productStatsPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="productStats" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="productStatsPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="productStats" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>商品</th><th>进货量</th><th>销售量</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="productStatsTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="lx-card space-y-5">
-        <h3 class="lx-section-title !mb-0">畅销榜</h3>
-        <p class="lx-muted text-[13px] leading-relaxed">与商品销售统计相同：按上方<strong>开始日期、结束日期、仓库</strong>筛选销售单，按商品合并后按销售额排序。</p>
-        <div class="lx-table-wrap">
-          <table class="lx-table"><thead><tr><th>名次</th><th>商品</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerProductTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group space-y-4" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/60">
+            <h3 class="lx-section-title !mb-0">畅销榜</h3>
+            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
+          </summary>
+          <div class="space-y-4">
+            <p class="lx-muted text-[13px] leading-relaxed">与商品销售统计相同：按上方<strong>开始日期、结束日期、仓库</strong>筛选销售单，按商品合并后按销售额排序。</p>
+            <div class="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 dark:border-slate-700 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="bestsellerPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="bestsellerPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="bestseller">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="bestsellerPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="bestseller" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="bestsellerPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="bestseller" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap">
+              <table class="lx-table"><thead><tr><th>名次</th><th>商品</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerProductTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -438,9 +668,31 @@
             <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增仓库</button></div>
           </form>
         </div>
-        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>仓库名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="warehouseTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group border-t border-slate-100 dark:border-slate-800" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-6 py-3 text-sm text-slate-600 dark:text-slate-300">
+            <span class="font-medium">仓库列表</span>
+            <span class="text-xs text-slate-400">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="warehousePagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="warehousePagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="warehouses">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="warehousePagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="warehouses" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="warehousePagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="warehouses" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>仓库名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="warehouseTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -457,9 +709,31 @@
             <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">添加</button></div>
           </form>
         </div>
-        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>商品</th><th>单位</th><th>重命名商品</th><th>操作</th></tr></thead><tbody id="productDefTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group border-t border-slate-100 dark:border-slate-800" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-6 py-3 text-sm text-slate-600 dark:text-slate-300">
+            <span class="font-medium">商品档案列表</span>
+            <span class="text-xs text-slate-400">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="productDefPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="productDefPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="productDefs">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="productDefPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="productDefs" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="productDefPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="productDefs" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>商品</th><th>单位</th><th>重命名商品</th><th>操作</th></tr></thead><tbody id="productDefTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -472,9 +746,31 @@
             <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增客户</button></div>
           </form>
         </div>
-        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>客户名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="customerDefTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group border-t border-slate-100 dark:border-slate-800" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-6 py-3 text-sm text-slate-600 dark:text-slate-300">
+            <span class="font-medium">客户列表</span>
+            <span class="text-xs text-slate-400">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="customerDefPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="customerDefPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="customerDefs">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="customerDefPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="customerDefs" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="customerDefPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="customerDefs" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>客户名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="customerDefTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -487,9 +783,31 @@
             <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增供应商</button></div>
           </form>
         </div>
-        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>供应商名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="supplierDefTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group border-t border-slate-100 dark:border-slate-800" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-6 py-3 text-sm text-slate-600 dark:text-slate-300">
+            <span class="font-medium">供应商列表</span>
+            <span class="text-xs text-slate-400">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="supplierDefPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="supplierDefPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="supplierDefs">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="supplierDefPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="supplierDefs" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="supplierDefPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="supplierDefs" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>供应商名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="supplierDefTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -509,9 +827,31 @@
             <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">添加</button></div>
           </form>
         </div>
-        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>项目</th><th>开始</th><th>结束</th><th>金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="fixedCostEntryTbody"></tbody></table>
-        </div>
+        <details class="lx-record-block group border-t border-slate-100 dark:border-slate-800" open>
+          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 px-6 py-3 text-sm text-slate-600 dark:text-slate-300">
+            <span class="font-medium">固定成本记录</span>
+            <span class="text-xs text-slate-400">展开 / 收起</span>
+          </summary>
+          <div>
+            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
+              <span id="fixedCostPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
+              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
+                <select id="fixedCostPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="fixedCosts">
+                  <option value="10">10</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </label>
+              <div class="flex flex-wrap gap-2 sm:ml-auto">
+                <button type="button" id="fixedCostPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="fixedCosts" data-list-pager-dir="prev">上一页</button>
+                <button type="button" id="fixedCostPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="fixedCosts" data-list-pager-dir="next">下一页</button>
+              </div>
+            </div>
+            <div class="lx-table-wrap border-0 shadow-none">
+              <table class="lx-table"><thead><tr><th>项目</th><th>开始</th><th>结束</th><th>金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="fixedCostEntryTbody"></tbody></table>
+            </div>
+          </div>
+        </details>
       </div>
     </section>
 
@@ -522,11 +862,11 @@
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260618"></script>
+  <script src="lingxin-ims-app.js?v=20260619"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./service-worker.js?v=20260617").catch(function (err) {
+        navigator.serviceWorker.register("./service-worker.js?v=20260619").catch(function (err) {
           console.log("SW 注册失败:", err);
         });
       });

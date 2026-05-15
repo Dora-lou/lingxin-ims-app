@@ -7,9 +7,6 @@
   const REMINDER_DAYS = 7;
   const REMINDER_KEY = "hardware_ims_backup_reminder_v1";
   const CLOUD_SYNC_KEY = "hardware_ims_cloud_sync_v1";
-  const LIST_PAGE_SIZE = 50;
-  let purchaseListPage = 1;
-  let salesListPage = 1;
   const purchaseCheckedIds = new Set();
   const salesCheckedIds = new Set();
 
@@ -1174,8 +1171,7 @@
     els.fEnd.value = "";
     els.fWarehouse.value = "";
     els.fGroup.value = "day";
-    purchaseListPage = 1;
-    salesListPage = 1;
+    resetAnalyticsListPagers();
     purchaseCheckedIds.clear();
     salesCheckedIds.clear();
     renderAnalytics();
@@ -1347,6 +1343,99 @@
     const page = Math.min(Math.max(1, pageIndex), pages);
     const slice = rows.slice((page - 1) * pageSize, page * pageSize);
     return { page, pages, total, slice };
+  }
+
+  const LIST_PAGE_OPTIONS = [10, 50, 100];
+  const LIST_PAGE_STORAGE = "hardware_ims_list_pager_v1";
+
+  /** @type {Record<string, { page: number, size: number }>} */
+  const listPager = {};
+
+  const PAGER_UI = {
+    purchases: { info: "purchasePageInfo", size: "purchasePageSize", prev: "purchasePagePrev", next: "purchasePageNext" },
+    sales: { info: "salesPageInfo", size: "salesPageSize", prev: "salesPagePrev", next: "salesPageNext" },
+    arSummary: { info: "arSummaryPagerInfo", size: "arSummaryPagerSize", prev: "arSummaryPagerPrev", next: "arSummaryPagerNext" },
+    arCredit: { info: "arCreditPagerInfo", size: "arCreditPagerSize", prev: "arCreditPagerPrev", next: "arCreditPagerNext" },
+    arPaid: { info: "arPaidPagerInfo", size: "arPaidPagerSize", prev: "arPaidPagerPrev", next: "arPaidPagerNext" },
+    receipts: { info: "receiptPagerInfo", size: "receiptPagerSize", prev: "receiptPagerPrev", next: "receiptPagerNext" },
+    inventory: { info: "inventoryPagerInfo", size: "inventoryPagerSize", prev: "inventoryPagerPrev", next: "inventoryPagerNext" },
+    transfers: { info: "transferPagerInfo", size: "transferPagerSize", prev: "transferPagerPrev", next: "transferPagerNext" },
+    adjustments: { info: "adjustPagerInfo", size: "adjustPagerSize", prev: "adjustPagerPrev", next: "adjustPagerNext" },
+    warehouses: { info: "warehousePagerInfo", size: "warehousePagerSize", prev: "warehousePagerPrev", next: "warehousePagerNext" },
+    productDefs: { info: "productDefPagerInfo", size: "productDefPagerSize", prev: "productDefPagerPrev", next: "productDefPagerNext" },
+    customerDefs: { info: "customerDefPagerInfo", size: "customerDefPagerSize", prev: "customerDefPagerPrev", next: "customerDefPagerNext" },
+    supplierDefs: { info: "supplierDefPagerInfo", size: "supplierDefPagerSize", prev: "supplierDefPagerPrev", next: "supplierDefPagerNext" },
+    fixedCosts: { info: "fixedCostPagerInfo", size: "fixedCostPagerSize", prev: "fixedCostPagerPrev", next: "fixedCostPagerNext" },
+    profitGroup: { info: "profitGroupPagerInfo", size: "profitGroupPagerSize", prev: "profitGroupPagerPrev", next: "profitGroupPagerNext" },
+    productStats: { info: "productStatsPagerInfo", size: "productStatsPagerSize", prev: "productStatsPagerPrev", next: "productStatsPagerNext" },
+    bestseller: { info: "bestsellerPagerInfo", size: "bestsellerPagerSize", prev: "bestsellerPagerPrev", next: "bestsellerPagerNext" },
+  };
+
+  function coerceListPageSize(n) {
+    const x = Number(n);
+    return LIST_PAGE_OPTIONS.includes(x) ? x : 50;
+  }
+
+  function loadStoredListPageSize(key) {
+    try {
+      const o = JSON.parse(localStorage.getItem(LIST_PAGE_STORAGE) || "{}");
+      return coerceListPageSize(o[key]);
+    } catch (e) {
+      return 50;
+    }
+  }
+
+  function persistListPageSize(key) {
+    if (!listPager[key]) return;
+    try {
+      const o = JSON.parse(localStorage.getItem(LIST_PAGE_STORAGE) || "{}");
+      o[key] = listPager[key].size;
+      localStorage.setItem(LIST_PAGE_STORAGE, JSON.stringify(o));
+    } catch (e) {}
+  }
+
+  function ensureListPager(key) {
+    if (!listPager[key]) listPager[key] = { page: 1, size: loadStoredListPageSize(key) };
+    return listPager[key];
+  }
+
+  function paginateWithPager(key, rows) {
+    const pg = ensureListPager(key);
+    const { page, pages, total, slice } = paginateRows(rows, pg.page, pg.size);
+    pg.page = page;
+    return { page, pages, total, slice, pageSize: pg.size };
+  }
+
+  function syncPagerControls(key, meta) {
+    const ui = PAGER_UI[key];
+    if (!ui) return;
+    const info = document.getElementById(ui.info);
+    const size = document.getElementById(ui.size);
+    const prev = document.getElementById(ui.prev);
+    const next = document.getElementById(ui.next);
+    if (info) info.textContent = meta.total ? "第 " + meta.page + "/" + meta.pages + " 页，共 " + meta.total + " 条" : "共 0 条";
+    if (size) {
+      const v = String(meta.pageSize);
+      if (size.value !== v) size.value = v;
+    }
+    if (prev) prev.disabled = meta.pages <= 1 || meta.total === 0;
+    if (next) next.disabled = meta.page >= meta.pages || meta.total === 0;
+  }
+
+  function rerenderForListPagerKey(key) {
+    if (key === "purchases") renderPurchases();
+    else if (key === "sales") renderSales();
+    else if (key === "arSummary" || key === "arCredit" || key === "arPaid" || key === "receipts") renderReceivables();
+    else if (key === "inventory" || key === "transfers" || key === "adjustments" || key === "warehouses") renderInventory();
+    else if (key === "productDefs" || key === "customerDefs" || key === "supplierDefs") renderInventory();
+    else if (key === "fixedCosts") renderInventory();
+    else if (key === "profitGroup" || key === "productStats" || key === "bestseller") renderAnalytics();
+  }
+
+  function resetAnalyticsListPagers() {
+    ["profitGroup", "productStats", "bestseller"].forEach((k) => {
+      ensureListPager(k).page = 1;
+    });
   }
 
   function writeWorkbookToFile(wb, filenameBase) {
@@ -1979,10 +2068,8 @@
   function renderPurchases() {
     const q = els.purchaseSearch.value.trim().toLowerCase();
     const rows = filteredPurchaseRows(state, q);
-    const { page, pages, total, slice } = paginateRows(rows, purchaseListPage, LIST_PAGE_SIZE);
-    purchaseListPage = page;
-    const pageInfo = document.getElementById("purchasePageInfo");
-    if (pageInfo) pageInfo.textContent = total ? "第 " + page + "/" + pages + " 页，共 " + total + " 条" : "共 0 条";
+    const { page, pages, total, slice, pageSize } = paginateWithPager("purchases", rows);
+    syncPagerControls("purchases", { page, pages, total, pageSize });
     const allIdSet = new Set(rows.map((r) => r.id));
     els.purchaseTbody.innerHTML = "";
     slice.forEach((p) => {
@@ -2079,10 +2166,8 @@
     syncAllComputed(state);
     const q = els.salesSearch.value.trim().toLowerCase();
     const rows = filteredSalesRows(state, q);
-    const { page, pages, total, slice } = paginateRows(rows, salesListPage, LIST_PAGE_SIZE);
-    salesListPage = page;
-    const pageInfo = document.getElementById("salesPageInfo");
-    if (pageInfo) pageInfo.textContent = total ? "第 " + page + "/" + pages + " 页，共 " + total + " 条" : "共 0 条";
+    const { page, pages, total, slice, pageSize } = paginateWithPager("sales", rows);
+    syncPagerControls("sales", { page, pages, total, pageSize });
     const allIdSet = new Set(rows.map((r) => r.id));
     els.salesTbody.innerHTML = "";
     slice.forEach((s) => {
@@ -2215,32 +2300,43 @@
     }
 
     const balances = arCustomerBalances(state);
-    els.arSummaryTbody.innerHTML = "";
-    Array.from(balances.entries())
+    const summaryRowObjs = Array.from(balances.entries())
       .filter(([name]) => summaryCustomerVisible(name))
       .sort((a, b) => b[1] - a[1])
-      .forEach(([name, bal]) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td data-label="客户">${name}</td><td data-label="应收余额" class="lx-money">${money(bal)}</td>`;
-        els.arSummaryTbody.appendChild(tr);
-      });
-    if (!els.arSummaryTbody.children.length) {
+      .map(([name, bal]) => ({ name, bal }));
+    const smMeta = paginateWithPager("arSummary", summaryRowObjs);
+    syncPagerControls("arSummary", smMeta);
+    els.arSummaryTbody.innerHTML = "";
+    if (!summaryRowObjs.length) {
       const tr = document.createElement("tr");
       tr.innerHTML =
         balances.size === 0
           ? `<td colspan="2" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">暂无欠款客户</td>`
           : `<td colspan="2" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录（试试别的关键词）" : "暂无欠款客户"}</td>`;
       els.arSummaryTbody.appendChild(tr);
+    } else {
+      smMeta.slice.forEach(({ name, bal }) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td data-label="客户">${name}</td><td data-label="应收余额" class="lx-money">${money(bal)}</td>`;
+        els.arSummaryTbody.appendChild(tr);
+      });
     }
 
     els.arCreditTbody.innerHTML = "";
     const unpaidRows = state.sales
       .filter((s) => creditRemaining(s) > 0.001 && saleMatchesSearch(s))
       .sort((a, b) => cmpDate(a.date, b.date));
-    unpaidRows.forEach((s) => {
+    const crMeta = paginateWithPager("arCredit", unpaidRows);
+    syncPagerControls("arCredit", crMeta);
+    if (!unpaidRows.length) {
       const tr = document.createElement("tr");
-      const rem = creditRemaining(s);
-      tr.innerHTML = `
+      tr.innerHTML = `<td colspan="8" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无未结清欠款"}</td>`;
+      els.arCreditTbody.appendChild(tr);
+    } else {
+      crMeta.slice.forEach((s) => {
+        const tr = document.createElement("tr");
+        const rem = creditRemaining(s);
+        tr.innerHTML = `
         <td data-label="日期">${s.date}</td>
         <td data-label="客户">${String(s.customerName || "").trim() || "（未填写客户）"}</td>
         <td data-label="商品">${s.product || ""}</td>
@@ -2249,12 +2345,8 @@
         <td data-label="收款核销" class="lx-money">${money(s.arReceiptAllocated)}</td>
         <td data-label="剩余欠款" class="lx-money">${money(rem)}</td>
         <td data-label="已收款"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600" data-ar-paid="${s.id}" /></td>`;
-      els.arCreditTbody.appendChild(tr);
-    });
-    if (!els.arCreditTbody.children.length) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="8" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无未结清欠款"}</td>`;
-      els.arCreditTbody.appendChild(tr);
+        els.arCreditTbody.appendChild(tr);
+      });
     }
 
     const paidTbody = document.getElementById("arPaidTbody");
@@ -2268,11 +2360,18 @@
             saleMatchesSearch(s)
         )
         .sort((a, b) => -cmpDate(a.date, b.date));
-      paidRows.forEach((s) => {
+      const pdMeta = paginateWithPager("arPaid", paidRows);
+      syncPagerControls("arPaid", pdMeta);
+      if (!paidRows.length) {
         const tr = document.createElement("tr");
-        const manual = Math.max(0, num(s.arManualPaid));
-        const paidTotal = Math.min(num(s.amount), Math.max(0, num(s.paidAtSale)) + Math.max(0, num(s.arReceiptAllocated)) + manual);
-        tr.innerHTML = `
+        tr.innerHTML = `<td colspan="8" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无已结清记录"}</td>`;
+        paidTbody.appendChild(tr);
+      } else {
+        pdMeta.slice.forEach((s) => {
+          const tr = document.createElement("tr");
+          const manual = Math.max(0, num(s.arManualPaid));
+          const paidTotal = Math.min(num(s.amount), Math.max(0, num(s.paidAtSale)) + Math.max(0, num(s.arReceiptAllocated)) + manual);
+          tr.innerHTML = `
           <td data-label="日期">${s.date}</td>
           <td data-label="客户">${String(s.customerName || "").trim() || "（未填写客户）"}</td>
           <td data-label="商品">${s.product || ""}</td>
@@ -2281,12 +2380,8 @@
           <td data-label="收款核销" class="lx-money">${money(s.arReceiptAllocated)}</td>
           <td data-label="手动结清" class="lx-money">${money(manual)}</td>
           <td data-label="已收合计" class="lx-money">${money(paidTotal)}</td>`;
-        paidTbody.appendChild(tr);
-      });
-      if (!paidTbody.children.length) {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td colspan="8" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无已结清记录"}</td>`;
-        paidTbody.appendChild(tr);
+          paidTbody.appendChild(tr);
+        });
       }
     }
 
@@ -2295,10 +2390,15 @@
       if (!arQL) return true;
       return arTextMatch(r.customerName, arQL) || arTextMatch(r.note, arQL);
     };
-    [...state.receipts]
-      .filter(receiptMatches)
-      .sort((a, b) => -cmpDate(a.date, b.date))
-      .forEach((r) => {
+    const receiptRows = [...state.receipts].filter(receiptMatches).sort((a, b) => -cmpDate(a.date, b.date));
+    const rcMeta = paginateWithPager("receipts", receiptRows);
+    syncPagerControls("receipts", rcMeta);
+    if (!receiptRows.length) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td colspan="5" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无收款记录"}</td>`;
+      els.receiptTbody.appendChild(tr);
+    } else {
+      rcMeta.slice.forEach((r) => {
         const tr = document.createElement("tr");
         tr.innerHTML = `
           <td data-label="日期">${r.date}</td>
@@ -2308,10 +2408,6 @@
           <td data-label="操作" class="text-right">${lxIconDel(`data-del-r="${r.id}"`)}</td>`;
         els.receiptTbody.appendChild(tr);
       });
-    if (!els.receiptTbody.children.length) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="5" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无收款记录"}</td>`;
-      els.receiptTbody.appendChild(tr);
     }
     els.receiptTbody.querySelectorAll("[data-del-r]").forEach((b) => {
       b.addEventListener("click", () => {
@@ -2343,9 +2439,12 @@
     if (!els.fixedCostEntryTbody) return;
 
     els.fixedCostEntryTbody.innerHTML = "";
-    [...(state.fixedCostEntries || [])]
-      .sort((a, b) => -cmpDate(a.startDate, b.startDate) || -cmpDate(a.endDate, b.endDate))
-      .forEach((row) => {
+    const fcRows = [...(state.fixedCostEntries || [])].sort(
+      (a, b) => -cmpDate(a.startDate, b.startDate) || -cmpDate(a.endDate, b.endDate)
+    );
+    const fcMeta = paginateWithPager("fixedCosts", fcRows);
+    syncPagerControls("fixedCosts", fcMeta);
+    fcMeta.slice.forEach((row) => {
         const rid = escapeHtml(row.id);
         const proj = String(row.project || "").trim();
         const tr = document.createElement("tr");
@@ -2403,7 +2502,10 @@
     if (!els.productDefTbody || !els.customerDefTbody || !els.supplierDefTbody) return;
 
     els.productDefTbody.innerHTML = "";
-    (state.productDefs || []).forEach((it) => {
+    const pdRows = [...(state.productDefs || [])];
+    const pdMeta = paginateWithPager("productDefs", pdRows);
+    syncPagerControls("productDefs", pdMeta);
+    pdMeta.slice.forEach((it) => {
       const tr = document.createElement("tr");
       const uPick = it.unitId || defaultUnitId(state);
       tr.innerHTML = `
@@ -2456,7 +2558,10 @@
     });
 
     els.customerDefTbody.innerHTML = "";
-    (state.customerDefs || []).forEach((it) => {
+    const cdRows = [...(state.customerDefs || [])];
+    const cdMeta = paginateWithPager("customerDefs", cdRows);
+    syncPagerControls("customerDefs", cdMeta);
+    cdMeta.slice.forEach((it) => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td data-label="客户名">${escapeHtml(it.name)}</td>
@@ -2498,7 +2603,10 @@
     });
 
     els.supplierDefTbody.innerHTML = "";
-    (state.supplierDefs || []).forEach((it) => {
+    const sdRows = [...(state.supplierDefs || [])];
+    const sdMeta = paginateWithPager("supplierDefs", sdRows);
+    syncPagerControls("supplierDefs", sdMeta);
+    sdMeta.slice.forEach((it) => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td data-label="供应商名">${escapeHtml(it.name)}</td>
@@ -2545,12 +2653,18 @@
     const { inv } = buildLedger(state);
     const whF = els.invWarehouseFilter.value;
     els.inventoryTbody.innerHTML = "";
+    const invRows = [];
     const keys = Array.from(inv.keys()).sort();
     keys.forEach((k) => {
       const [whId, prod] = k.split("|||");
       if (whF && whId !== whF) return;
       const c = inv.get(k);
       if (num(c.qty) < 0.0001 && num(c.totalCost) < 0.0001) return;
+      invRows.push({ whId, prod, c });
+    });
+    const invMeta = paginateWithPager("inventory", invRows);
+    syncPagerControls("inventory", invMeta);
+    invMeta.slice.forEach(({ whId, prod, c }) => {
       const tr = document.createElement("tr");
       const avg = avgUnit(c);
       tr.innerHTML = `
@@ -2563,11 +2677,12 @@
     });
 
     els.transferTbody.innerHTML = "";
-    [...state.transfers]
-      .sort((a, b) => -cmpDate(a.date, b.date))
-      .forEach((t) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
+    const transferRows = [...state.transfers].sort((a, b) => -cmpDate(a.date, b.date));
+    const trMeta = paginateWithPager("transfers", transferRows);
+    syncPagerControls("transfers", trMeta);
+    trMeta.slice.forEach((t) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
           <td data-label="日期">${t.date}</td>
           <td data-label="商品">${t.product}</td>
           <td data-label="数量">${formatQtyCell(t.qty, state, t.unitId)}</td>
@@ -2575,8 +2690,8 @@
           <td data-label="到">${whName(state, t.toWarehouseId)}</td>
           <td data-label="备注">${t.note || ""}</td>
           <td data-label="操作" class="text-right">${lxIconDel(`data-del-t="${t.id}"`)}</td>`;
-        els.transferTbody.appendChild(tr);
-      });
+      els.transferTbody.appendChild(tr);
+    });
     els.transferTbody.querySelectorAll("[data-del-t]").forEach((b) => {
       b.addEventListener("click", () => {
         const id = b.getAttribute("data-del-t");
@@ -2588,19 +2703,20 @@
     });
 
     els.adjustTbody.innerHTML = "";
-    [...state.adjustments]
-      .sort((a, b) => -cmpDate(a.date, b.date))
-      .forEach((a) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
+    const adjustRows = [...state.adjustments].sort((a, b) => -cmpDate(a.date, b.date));
+    const adjMeta = paginateWithPager("adjustments", adjustRows);
+    syncPagerControls("adjustments", adjMeta);
+    adjMeta.slice.forEach((a) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
           <td data-label="日期">${a.date}</td>
           <td data-label="仓库">${whName(state, a.warehouseId)}</td>
           <td data-label="商品">${a.product}</td>
           <td data-label="调整数量">${formatQtyCell(a.qty, state, a.unitId)}</td>
           <td data-label="原因">${a.reason || ""}</td>
           <td data-label="操作" class="text-right">${lxIconDel(`data-del-a="${a.id}"`)}</td>`;
-        els.adjustTbody.appendChild(tr);
-      });
+      els.adjustTbody.appendChild(tr);
+    });
     els.adjustTbody.querySelectorAll("[data-del-a]").forEach((b) => {
       b.addEventListener("click", () => {
         const id = b.getAttribute("data-del-a");
@@ -2612,7 +2728,10 @@
     });
 
     els.warehouseTbody.innerHTML = "";
-    state.warehouses.forEach((w) => {
+    const warehouseRows = [...state.warehouses];
+    const whMeta = paginateWithPager("warehouses", warehouseRows);
+    syncPagerControls("warehouses", whMeta);
+    whMeta.slice.forEach((w) => {
       const tr = document.createElement("tr");
       tr.innerHTML = `
         <td data-label="仓库名">${w.name}</td>
@@ -2703,8 +2822,10 @@
     });
 
     const keys = Array.from(new Set([...map.keys(), ...fixedByKey.keys()])).sort();
+    const pgMeta = paginateWithPager("profitGroup", keys);
+    syncPagerControls("profitGroup", pgMeta);
     els.profitGroupTbody.innerHTML = "";
-    keys.forEach((k) => {
+    pgMeta.slice.forEach((k) => {
       const o = map.get(k) || { revenue: 0, cogs: 0, expense: 0 };
       const rev = num(o.revenue);
       const cg = num(o.cogs);
@@ -2743,13 +2864,14 @@
       prodMap.set(k, o);
     });
     els.productStatsTbody.innerHTML = "";
-    Array.from(prodMap.values())
-      .sort((a, b) => b.revenue - a.revenue)
-      .forEach((o) => {
-        const prof = o.revenue - o.cogs;
-        const mar = o.revenue > 0 ? (100 * prof) / o.revenue : 0;
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
+    const prodStatRows = Array.from(prodMap.values()).sort((a, b) => b.revenue - a.revenue);
+    const psMeta = paginateWithPager("productStats", prodStatRows);
+    syncPagerControls("productStats", psMeta);
+    psMeta.slice.forEach((o) => {
+      const prof = o.revenue - o.cogs;
+      const mar = o.revenue > 0 ? (100 * prof) / o.revenue : 0;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
           <td data-label="商品">${o.product}</td>
           <td data-label="进货量">${formatQtyCell(o.qtyIn || 0, state, state.units[0].id)}</td>
           <td data-label="销售量">${formatQtyCell(o.qtySold, state, state.units[0].id)}</td>
@@ -2757,8 +2879,8 @@
           <td data-label="销售成本" class="lx-money">${money(o.cogs)}</td>
           <td data-label="利润" class="lx-money">${money(prof)}</td>
           <td data-label="利润率">${mar.toFixed(2)}%</td>`;
-        els.productStatsTbody.appendChild(tr);
-      });
+      els.productStatsTbody.appendChild(tr);
+    });
 
     if (els.bestsellerProductTbody) {
       const { sales: fsRank } = filterRows(state, start, end, wh);
@@ -2773,10 +2895,13 @@
         prodRank.set(k, o);
       });
       const prodRows = Array.from(prodRank.values()).sort((a, b) => b.rev - a.rev || b.qty - a.qty);
+      const bsMeta = paginateWithPager("bestseller", prodRows);
+      syncPagerControls("bestseller", bsMeta);
       els.bestsellerProductTbody.innerHTML = "";
-      prodRows.forEach((o, i) => {
+      const rank0 = (bsMeta.page - 1) * bsMeta.pageSize;
+      bsMeta.slice.forEach((o, idx) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td data-label="名次">${i + 1}</td><td data-label="商品">${escapeHtml(o.label)}</td><td data-label="销售数量">${formatQtyCell(
+        tr.innerHTML = `<td data-label="名次">${rank0 + idx + 1}</td><td data-label="商品">${escapeHtml(o.label)}</td><td data-label="销售数量">${formatQtyCell(
           o.qty,
           state,
           state.units[0].id
@@ -2896,7 +3021,12 @@
   });
 
   if (els.arSearchFilter) {
-    els.arSearchFilter.addEventListener("input", renderReceivables);
+    els.arSearchFilter.addEventListener("input", () => {
+      ["arSummary", "arCredit", "arPaid", "receipts"].forEach((k) => {
+        ensureListPager(k).page = 1;
+      });
+      renderReceivables();
+    });
   }
 
   els.adjustForm.addEventListener("submit", (e) => {
@@ -3026,13 +3156,7 @@
     tabPurchase.addEventListener("click", (e) => {
       const t = e.target;
       if (!t || !t.id) return;
-      if (t.id === "purchasePagePrev") {
-        purchaseListPage = Math.max(1, purchaseListPage - 1);
-        renderPurchases();
-      } else if (t.id === "purchasePageNext") {
-        purchaseListPage += 1;
-        renderPurchases();
-      } else if (t.id === "purchaseBatchDelBtn") {
+      if (t.id === "purchaseBatchDelBtn") {
         if (purchaseCheckedIds.size === 0) return alert("请先勾选要删除的进货单");
         if (
           !confirmTypedPhrase(
@@ -3069,13 +3193,7 @@
     tabSales.addEventListener("click", (e) => {
       const t = e.target;
       if (!t || !t.id) return;
-      if (t.id === "salesPagePrev") {
-        salesListPage = Math.max(1, salesListPage - 1);
-        renderSales();
-      } else if (t.id === "salesPageNext") {
-        salesListPage += 1;
-        renderSales();
-      } else if (t.id === "salesBatchDelBtn") {
+      if (t.id === "salesBatchDelBtn") {
         if (salesCheckedIds.size === 0) return alert("请先勾选要删除的销售单");
         if (
           !confirmTypedPhrase(
@@ -3107,7 +3225,30 @@
     });
   }
 
+  document.addEventListener("change", (e) => {
+    const sel = e.target;
+    if (!sel || !sel.matches || !sel.matches("select.lx-list-page-size[data-list-pager-key]")) return;
+    const key = sel.getAttribute("data-list-pager-key");
+    if (!key || !PAGER_UI[key]) return;
+    const pg = ensureListPager(key);
+    pg.size = coerceListPageSize(sel.value);
+    pg.page = 1;
+    persistListPageSize(key);
+    rerenderForListPagerKey(key);
+  });
+
   document.addEventListener("click", (e) => {
+    const pbtn = e.target && e.target.closest && e.target.closest("[data-list-pager-dir]");
+    if (pbtn) {
+      const key = pbtn.getAttribute("data-list-pager-key");
+      const dir = pbtn.getAttribute("data-list-pager-dir");
+      if (!key || !PAGER_UI[key]) return;
+      const pg = ensureListPager(key);
+      if (dir === "prev") pg.page = Math.max(1, pg.page - 1);
+      else if (dir === "next") pg.page = pg.page + 1;
+      rerenderForListPagerKey(key);
+      return;
+    }
     const btn = e.target && e.target.closest && e.target.closest("[data-export-module]");
     if (!btn) return;
     const mod = btn.getAttribute("data-export-module");
@@ -3134,23 +3275,28 @@
   wireMainFormProductUnits();
 
   els.purchaseSearch.addEventListener("input", () => {
-    purchaseListPage = 1;
+    ensureListPager("purchases").page = 1;
     purchaseCheckedIds.clear();
     renderPurchases();
   });
   els.salesSearch.addEventListener("input", () => {
-    salesListPage = 1;
+    ensureListPager("sales").page = 1;
     salesCheckedIds.clear();
     renderSales();
   });
-  els.invWarehouseFilter.addEventListener("change", renderInventory);
+  els.invWarehouseFilter.addEventListener("change", () => {
+    ensureListPager("inventory").page = 1;
+    renderInventory();
+  });
 
   els.filterForm.addEventListener("submit", (e) => {
     e.preventDefault();
+    resetAnalyticsListPagers();
     renderAnalytics();
   });
   if (els.fGroup) {
     els.fGroup.addEventListener("change", () => {
+      resetAnalyticsListPagers();
       renderAnalytics();
     });
   }
@@ -3158,9 +3304,9 @@
     resetAnalyticsFilters();
   });
 
-  if (els.fStart) els.fStart.addEventListener("change", () => renderAnalytics());
-  if (els.fEnd) els.fEnd.addEventListener("change", () => renderAnalytics());
-  if (els.fWarehouse) els.fWarehouse.addEventListener("change", () => renderAnalytics());
+  if (els.fStart) els.fStart.addEventListener("change", () => { resetAnalyticsListPagers(); renderAnalytics(); });
+  if (els.fEnd) els.fEnd.addEventListener("change", () => { resetAnalyticsListPagers(); renderAnalytics(); });
+  if (els.fWarehouse) els.fWarehouse.addEventListener("change", () => { resetAnalyticsListPagers(); renderAnalytics(); });
 
   els.exportMonthBtn.addEventListener("click", () => {
     const y = new Date().getFullYear();
