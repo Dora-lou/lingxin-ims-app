@@ -1168,6 +1168,122 @@
     return t != null && String(t).trim() === requiredExact;
   }
 
+  function resetAnalyticsFilters() {
+    if (!els.fStart || !els.fEnd || !els.fWarehouse || !els.fGroup) return;
+    els.fStart.value = "";
+    els.fEnd.value = "";
+    els.fWarehouse.value = "";
+    els.fGroup.value = "day";
+    purchaseListPage = 1;
+    salesListPage = 1;
+    purchaseCheckedIds.clear();
+    salesCheckedIds.clear();
+    renderAnalytics();
+  }
+
+  function clearAllPurchases() {
+    if (!state.purchases.length) return alert("暂无进货记录");
+    if (!confirmTypedPhrase("将永久删除全部进货单，库存与利润将重算，不可恢复。", "确认清空全部进货")) return;
+    state.purchases = [];
+    purchaseCheckedIds.clear();
+    saveState(state);
+    fullRender();
+  }
+
+  function clearAllSales() {
+    if (!state.sales.length) return alert("暂无销售记录");
+    if (!confirmTypedPhrase("将永久删除全部销售单，应收与库存将重算，不可恢复。", "确认清空全部销售")) return;
+    state.sales = [];
+    salesCheckedIds.clear();
+    saveState(state);
+    fullRender();
+  }
+
+  function clearAllReceipts() {
+    if (!state.receipts.length) return alert("暂无收款记录");
+    if (!confirmTypedPhrase("将永久删除全部收款登记，赊销核销将重算，不可恢复。", "确认清空全部收款")) return;
+    state.receipts = [];
+    saveState(state);
+    fullRender();
+  }
+
+  function clearAllTransfers() {
+    if (!state.transfers.length) return alert("暂无调拨记录");
+    if (!confirmTypedPhrase("将永久删除全部调拨单，不可恢复。", "确认清空全部调拨")) return;
+    state.transfers = [];
+    saveState(state);
+    fullRender();
+  }
+
+  function clearAllAdjustments() {
+    if (!state.adjustments.length) return alert("暂无库存调整记录");
+    if (!confirmTypedPhrase("将永久删除全部库存调整单，库存将重算，不可恢复。", "确认清空全部库存调整")) return;
+    state.adjustments = [];
+    saveState(state);
+    fullRender();
+  }
+
+  function clearWarehousesExceptFirst() {
+    if (state.warehouses.length <= 1) return alert("仅有一个仓库，无需清空。");
+    const keep = state.warehouses[0];
+    if (!confirm("将删除除「" + keep.name + "」外的全部仓库，并把相关进货/销售/调拨/调整单归到该仓。不可恢复。\n确定继续？")) return;
+    for (let i = 1; i < state.warehouses.length; i++) {
+      const wid = state.warehouses[i].id;
+      state.purchases.forEach((p) => {
+        if (p.warehouseId === wid) p.warehouseId = keep.id;
+      });
+      state.sales.forEach((s) => {
+        if (s.warehouseId === wid) s.warehouseId = keep.id;
+      });
+      state.adjustments.forEach((a) => {
+        if (a.warehouseId === wid) a.warehouseId = keep.id;
+      });
+      state.transfers.forEach((t) => {
+        if (t.fromWarehouseId === wid) t.fromWarehouseId = keep.id;
+        if (t.toWarehouseId === wid) t.toWarehouseId = keep.id;
+      });
+    }
+    state.warehouses = [keep];
+    saveState(state);
+    fullRender();
+  }
+
+  function clearProductDefsAndResetUnits() {
+    if (!confirmTypedPhrase("将清空商品档案，并把计量单位重置为仅「件」，所有单据中的单位将统一到该单位。不可恢复。", "确认清空商品与单位档案")) return;
+    const nu = uid();
+    [...(state.units || [])].forEach((u) => {
+      if (u.id !== nu) reassignUnitIdEverywhere(state, u.id, nu);
+    });
+    state.units = [{ id: nu, name: "件" }];
+    state.productDefs = [];
+    saveState(state);
+    fullRender();
+  }
+
+  function clearCustomerDefsOnly() {
+    if (!(state.customerDefs || []).length) return alert("客户档案已为空");
+    if (!confirm("将清空客户档案列表（不会修改已有销售单、收款里已填的客户名）。确定？")) return;
+    state.customerDefs = [];
+    saveState(state);
+    fullRender();
+  }
+
+  function clearSupplierDefsOnly() {
+    if (!(state.supplierDefs || []).length) return alert("供应商档案已为空");
+    if (!confirm("将清空供应商档案列表（不会修改已有进货单里的供应商名）。确定？")) return;
+    state.supplierDefs = [];
+    saveState(state);
+    fullRender();
+  }
+
+  function clearFixedCostEntriesOnly() {
+    if (!(state.fixedCostEntries || []).length) return alert("暂无固定成本记录");
+    if (!confirm("将删除全部固定成本记录，统计分析中的固定成本将变为 0。确定？")) return;
+    state.fixedCostEntries = [];
+    saveState(state);
+    fullRender();
+  }
+
   function latestUnitIdForProduct(st, productName) {
     const k = productKey(productName);
     if (!k) return null;
@@ -3039,15 +3155,7 @@
     });
   }
   els.resetFilterBtn.addEventListener("click", () => {
-    els.fStart.value = "";
-    els.fEnd.value = "";
-    els.fWarehouse.value = "";
-    els.fGroup.value = "day";
-    purchaseListPage = 1;
-    salesListPage = 1;
-    purchaseCheckedIds.clear();
-    salesCheckedIds.clear();
-    renderAnalytics();
+    resetAnalyticsFilters();
   });
 
   if (els.fStart) els.fStart.addEventListener("change", () => renderAnalytics());
@@ -3132,6 +3240,24 @@
   els.sPaymentType.dispatchEvent(new Event("change"));
 
   bindSuggestDelegation();
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-clear]");
+    if (!btn) return;
+    const k = btn.getAttribute("data-clear");
+    if (k === "analyticsFilters") resetAnalyticsFilters();
+    else if (k === "purchases") clearAllPurchases();
+    else if (k === "sales") clearAllSales();
+    else if (k === "receipts") clearAllReceipts();
+    else if (k === "transfers") clearAllTransfers();
+    else if (k === "adjustments") clearAllAdjustments();
+    else if (k === "warehouses") clearWarehousesExceptFirst();
+    else if (k === "productsUnits") clearProductDefsAndResetUnits();
+    else if (k === "customers") clearCustomerDefsOnly();
+    else if (k === "suppliers") clearSupplierDefsOnly();
+    else if (k === "fixedCosts") clearFixedCostEntriesOnly();
+  });
+
   fullRender();
   maybeBackupReminder();
 })();

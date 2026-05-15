@@ -142,7 +142,10 @@
     <section id="tab-purchase" class="panel block space-y-6">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <h2 class="lx-page-title">进货管理</h2>
-        <button type="button" class="lx-btn-outline shrink-0" data-export-module="purchase">下载本模块（Excel）</button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="purchases">一键清空</button>
+          <button type="button" class="lx-btn-outline shrink-0" data-export-module="purchase">下载本模块（Excel）</button>
+        </div>
       </div>
       <div class="lx-card">
         <form id="purchaseForm" class="lx-form-grid">
@@ -186,7 +189,10 @@
     <section id="tab-sales" class="panel hidden space-y-6">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <h2 class="lx-page-title">销售管理</h2>
-        <button type="button" class="lx-btn-outline shrink-0" data-export-module="sales">下载本模块（Excel）</button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="sales">一键清空</button>
+          <button type="button" class="lx-btn-outline shrink-0" data-export-module="sales">下载本模块（Excel）</button>
+        </div>
       </div>
       <div class="lx-card">
         <form id="salesForm" class="lx-form-grid">
@@ -233,7 +239,10 @@
     <section id="tab-receivables" class="panel hidden space-y-6">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <h2 class="lx-page-title">应收账款</h2>
-        <button type="button" class="lx-btn-outline shrink-0" data-export-module="receivables">下载本模块（Excel）</button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="receipts">一键清空收款</button>
+          <button type="button" class="lx-btn-outline shrink-0" data-export-module="receivables">下载本模块（Excel）</button>
+        </div>
       </div>
       <div class="lx-card">
         <form class="lx-form-grid" onsubmit="return false;">
@@ -290,7 +299,11 @@
     <section id="tab-inventory" class="panel hidden space-y-6">
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <h2 class="lx-page-title">库存管理</h2>
-        <button type="button" class="lx-btn-outline shrink-0" data-export-module="inventory">下载本模块（Excel）</button>
+        <div class="flex flex-wrap items-center gap-2">
+          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="transfers">清空调拨</button>
+          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="adjustments">清空调整</button>
+          <button type="button" class="lx-btn-outline shrink-0" data-export-module="inventory">下载本模块（Excel）</button>
+        </div>
       </div>
       <div class="lx-card">
         <form id="adjustForm" class="lx-form-grid">
@@ -356,9 +369,10 @@
           <div class="min-w-0"><label class="lx-label" for="fEnd">结束日期</label><input type="date" id="fEnd" class="lx-input" /></div>
           <div class="min-w-0"><label class="lx-label" for="fWarehouse">仓库</label><select id="fWarehouse"><option value="">全部仓库</option></select></div>
           <div class="min-w-0"><label class="lx-label" for="fGroup">趋势与利润粒度</label><select id="fGroup"><option value="day">按日</option><option value="week">按周</option><option value="month">按月</option><option value="quarter">按季度</option><option value="year">按年</option></select></div>
-          <div class="min-w-0 flex flex-wrap items-end gap-2">
+        <div class="min-w-0 flex flex-wrap items-end gap-2">
             <button class="lx-btn-primary" type="submit">查询统计</button>
             <button class="lx-btn-secondary" type="button" id="resetFilterBtn">重置</button>
+            <button class="lx-btn-secondary" type="button" data-clear="analyticsFilters">一键清空筛选</button>
             <button class="lx-btn-secondary" type="button" id="exportMonthBtn">导出当月Excel</button>
           </div>
         </form>
@@ -414,8 +428,9 @@
         <button type="button" id="exportAllExcelBtn" class="lx-btn-primary w-full sm:w-auto">一键下载全部数据（Excel）</button>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h3 class="lx-section-title !mb-0">仓库管理</h3>
+          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="warehouses">一键清空</button>
         </div>
         <div class="p-6">
           <form id="warehouseForm" class="lx-form-grid">
@@ -428,9 +443,12 @@
         </div>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">商品与单位</h3>
-          <p class="lx-muted mt-2 text-[13px] leading-relaxed">一次填写<strong>商品</strong>和<strong>单位</strong>即可添加；填<strong>新单位名称</strong>时会自动加入单位列表（与已有名称相同则复用）。下面列表中可修改商品名称，或从下拉框更换单位。进货/销售里输入已建档商品名时会自动带出单位。</p>
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div class="min-w-0">
+            <h3 class="lx-section-title !mb-0">商品与单位</h3>
+            <p class="lx-muted mt-2 text-[13px] leading-relaxed">一次填写<strong>商品</strong>和<strong>单位</strong>即可添加；填<strong>新单位名称</strong>时会自动加入单位列表（与已有名称相同则复用）。下面列表中可修改商品名称，或从下拉框更换单位。进货/销售里输入已建档商品名时会自动带出单位。</p>
+          </div>
+          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="productsUnits">一键清空</button>
         </div>
         <div class="p-6">
           <form id="productDefForm" class="lx-form-grid">
@@ -444,8 +462,9 @@
         </div>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h3 class="lx-section-title !mb-0">客户档案</h3>
+          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="customers">一键清空</button>
         </div>
         <div class="p-6">
           <form id="customerDefForm" class="lx-form-grid">
@@ -458,8 +477,9 @@
         </div>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h3 class="lx-section-title !mb-0">供应商档案</h3>
+          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="suppliers">一键清空</button>
         </div>
         <div class="p-6">
           <form id="supplierDefForm" class="lx-form-grid">
@@ -472,9 +492,12 @@
         </div>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
-        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">固定成本</h3>
-          <p class="lx-muted mt-2 text-[13px] leading-relaxed">按<strong>日期区间</strong>录入金额；<strong>项目</strong>直接填写（如房租、水电）。金额按日历天均摊后计入<strong>统计分析</strong>利润；与仓库筛选无关。</p>
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div class="min-w-0">
+            <h3 class="lx-section-title !mb-0">固定成本</h3>
+            <p class="lx-muted mt-2 text-[13px] leading-relaxed">按<strong>日期区间</strong>录入金额；<strong>项目</strong>直接填写（如房租、水电）。金额按日历天均摊后计入<strong>统计分析</strong>利润；与仓库筛选无关。</p>
+          </div>
+          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="fixedCosts">一键清空</button>
         </div>
         <div class="p-6">
           <form id="fixedCostEntryForm" class="lx-form-grid">
@@ -499,7 +522,7 @@
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260617"></script>
+  <script src="lingxin-ims-app.js?v=20260618"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
