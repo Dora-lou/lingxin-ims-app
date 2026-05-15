@@ -314,13 +314,14 @@
           <div class="min-w-0"><label class="lx-label" for="fStart">开始日期</label><input type="date" id="fStart" class="lx-input" /></div>
           <div class="min-w-0"><label class="lx-label" for="fEnd">结束日期</label><input type="date" id="fEnd" class="lx-input" /></div>
           <div class="min-w-0"><label class="lx-label" for="fWarehouse">仓库</label><select id="fWarehouse"><option value="">全部仓库</option></select></div>
-          <div class="min-w-0"><label class="lx-label" for="fGroup">利润粒度</label><select id="fGroup"><option value="day">按日</option><option value="week">按周</option><option value="month">按月</option></select></div>
+          <div class="min-w-0"><label class="lx-label" for="fGroup">趋势与利润粒度</label><select id="fGroup"><option value="day">按日</option><option value="week">按周</option><option value="month">按月</option><option value="quarter">按季度</option><option value="year">按年</option></select></div>
           <div class="min-w-0 flex flex-wrap items-end gap-2">
             <button class="lx-btn-primary" type="submit">查询统计</button>
             <button class="lx-btn-secondary" type="button" id="resetFilterBtn">重置</button>
             <button class="lx-btn-secondary" type="button" id="exportMonthBtn">导出当月Excel</button>
           </div>
         </form>
+        <p class="lx-muted mt-4 text-[13px] leading-relaxed">下方<strong>商品销售统计</strong>与<strong>畅销榜</strong>与汇总卡片、趋势图、周期表共用<strong>开始日期、结束日期、仓库</strong>；修改日期、仓库或「趋势与利润粒度」后会自动刷新（也可点「查询统计」）。</p>
       </div>
       <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">销售额</div><div class="lx-money mt-2 text-xl" id="sumRevenue">¥0.00</div></div>
@@ -328,7 +329,7 @@
         <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">利润</div><div class="lx-money mt-2 text-xl" id="sumProfit">¥0.00</div></div>
         <div class="lx-stat-card"><div class="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">利润率</div><div class="mt-2 text-xl font-bold tabular-nums text-slate-900 dark:text-white" id="sumMargin">0.00%</div></div>
       </div>
-      <p class="lx-muted mt-2">每日趋势图（收入 / 支出 / 利润）</p>
+      <p class="lx-muted mt-2">趋势图（收入 / 支出 / 利润）与下方「周期」表均按上方<strong>趋势与利润粒度</strong>汇总；可切换按日、按周、按月、按季度、按年。</p>
       <div class="lx-chart-card">
         <div class="lx-trend-chart-wrap">
           <canvas id="trendChart"></canvas>
@@ -339,13 +340,13 @@
           <span class="inline-flex items-center gap-2"><i class="inline-block h-3 w-3 rounded-sm bg-emerald-600"></i>利润</span>
         </div>
       </div>
-      <p class="lx-muted mt-2">每日 / 每周 / 每月利润统计</p>
+      <p class="lx-muted mt-2">按所选粒度汇总的销售额、成本与利润</p>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table"><thead><tr><th>周期</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="profitGroupTbody"></tbody></table>
         </div>
       </div>
-      <p class="lx-muted mt-2">商品销售统计</p>
+      <p class="lx-muted mt-2">商品销售统计（按上方日期与仓库）</p>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table"><thead><tr><th>商品</th><th>进货量</th><th>销售量</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="productStatsTbody"></tbody></table>
@@ -353,13 +354,7 @@
       </div>
       <div class="lx-card space-y-5">
         <h3 class="lx-section-title !mb-0">畅销榜</h3>
-        <p class="lx-muted text-[13px] leading-relaxed">统计所选期间内的<strong>销售单</strong>数量与销售额。下方「畅销榜」起止日期可单独填写；若留空，则使用上方「开始日期」「结束日期」。仓库筛选与上方一致。</p>
-        <form id="bestsellerForm" class="lx-form-grid" onsubmit="return false;">
-          <div class="min-w-0"><label class="lx-label" for="bsStart">畅销榜开始日期</label><input type="date" id="bsStart" class="lx-input" /></div>
-          <div class="min-w-0"><label class="lx-label" for="bsEnd">畅销榜结束日期</label><input type="date" id="bsEnd" class="lx-input" /></div>
-          <div class="min-w-0 flex items-end"><button type="submit" class="lx-btn-primary w-full sm:w-auto">更新畅销榜</button></div>
-        </form>
-        <p class="lx-muted">按商品（同名合并，按销售额排序）</p>
+        <p class="lx-muted text-[13px] leading-relaxed">与商品销售统计相同：按上方<strong>开始日期、结束日期、仓库</strong>筛选销售单，按商品合并后按销售额排序。</p>
         <div class="lx-table-wrap">
           <table class="lx-table"><thead><tr><th>名次</th><th>商品</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerProductTbody"></tbody></table>
         </div>
@@ -452,11 +447,11 @@
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260602"></script>
+  <script src="lingxin-ims-app.js?v=20260605"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./service-worker.js?v=20260602").catch(function (err) {
+        navigator.serviceWorker.register("./service-worker.js?v=20260605").catch(function (err) {
           console.log("SW 注册失败:", err);
         });
       });
