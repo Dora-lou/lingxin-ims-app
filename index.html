@@ -111,7 +111,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="lingxin-ims.css?v=20260520" />
+  <link rel="stylesheet" href="lingxin-ims.css?v=20260603" />
 </head>
 <body class="min-h-screen bg-slate-50 antialiased transition-colors duration-300 dark:bg-slate-950">
   <div class="mx-auto max-w-6xl px-4 pb-12 pt-6 sm:px-6 lg:px-8 lg:pb-16 lg:pt-10">
@@ -142,25 +142,24 @@
       <div class="lx-card">
         <form id="purchaseForm" class="lx-form-grid">
           <div class="min-w-0"><label class="lx-label" for="pDate">日期</label><input type="date" id="pDate" class="lx-input" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="pProduct">商品名称</label><input type="text" id="pProduct" class="lx-input" list="productList" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="pProduct">商品名称</label><input type="text" id="pProduct" class="lx-input" list="productList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="pQty">数量</label><input type="number" id="pQty" class="lx-input" min="0.01" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="pUnit">单位</label><select id="pUnit"></select></div>
           <div class="min-w-0"><label class="lx-label" for="pPrice">单价</label><input type="number" id="pPrice" class="lx-input" min="0" step="0.01" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="pCategory">分类</label><select id="pCategory"></select></div>
-          <div class="min-w-0"><label class="lx-label" for="pSupplier">供应商</label><input type="text" id="pSupplier" class="lx-input" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="pSupplier">供应商</label><input type="text" id="pSupplier" class="lx-input" list="supplierList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="pWarehouse">入库仓库</label><select id="pWarehouse"></select></div>
           <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增进货</button></div>
         </form>
       </div>
       <div class="lx-card">
         <form class="lx-form-grid" onsubmit="return false;">
-          <div class="min-w-0"><label class="lx-label" for="purchaseSearch">搜索商品</label><input id="purchaseSearch" class="lx-input" placeholder="关键字" /></div>
-          <div class="min-w-0"><label class="lx-label" for="purchaseCategoryFilter">分类筛选</label><select id="purchaseCategoryFilter"><option value="">全部分类</option></select></div>
+          <div class="lx-span-2 min-w-0"><label class="lx-label" for="purchaseSearch">搜索商品</label><input id="purchaseSearch" class="lx-input" placeholder="关键字" /></div>
         </form>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table">
-            <thead><tr><th>日期</th><th>仓库</th><th>供应商</th><th>商品</th><th>分类</th><th>数量</th><th>单价</th><th>小计</th><th>操作</th></tr></thead>
+            <thead><tr><th>日期</th><th>仓库</th><th>供应商</th><th>商品</th><th>数量</th><th>单价</th><th>小计</th><th>操作</th></tr></thead>
             <tbody id="purchaseTbody"></tbody>
           </table>
         </div>
@@ -172,13 +171,13 @@
       <div class="lx-card">
         <form id="salesForm" class="lx-form-grid">
           <div class="min-w-0"><label class="lx-label" for="sDate">日期</label><input type="date" id="sDate" class="lx-input" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="sProduct">商品名称</label><input type="text" id="sProduct" class="lx-input" list="productList" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="sCategory">分类</label><select id="sCategory"></select></div>
+          <div class="min-w-0"><label class="lx-label" for="sProduct">商品名称</label><input type="text" id="sProduct" class="lx-input" list="productList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="sWarehouse">出库仓库</label><select id="sWarehouse"></select></div>
           <div class="min-w-0"><label class="lx-label" for="sQty">数量</label><input type="number" id="sQty" class="lx-input" min="0.01" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="sUnit">单位</label><select id="sUnit"></select></div>
           <div class="min-w-0"><label class="lx-label" for="sPrice">售价</label><input type="number" id="sPrice" class="lx-input" min="0" step="0.01" required /></div>
           <div class="min-w-0"><label class="lx-label" for="sPaymentType">付款方式</label><select id="sPaymentType"><option value="cash">现款</option><option value="credit">赊账</option></select></div>
-          <div class="min-w-0"><label class="lx-label" for="sCustomer">客户(赊账必填)</label><input type="text" id="sCustomer" class="lx-input" list="customerList" placeholder="赊账客户名" /></div>
+          <div class="min-w-0"><label class="lx-label" for="sCustomer">客户(赊账必填)</label><input type="text" id="sCustomer" class="lx-input" list="customerList" autocomplete="off" placeholder="赊账客户名" /></div>
           <div class="min-w-0"><label class="lx-label" for="sPaidNow">本次收款</label><input type="number" id="sPaidNow" class="lx-input" min="0" step="0.01" value="0" /></div>
           <div class="min-w-0"><label class="lx-label" for="sBuyer">买方信息</label><input type="text" id="sBuyer" class="lx-input" /></div>
           <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增销售</button></div>
@@ -186,14 +185,13 @@
       </div>
       <div class="lx-card">
         <form class="lx-form-grid" onsubmit="return false;">
-          <div class="min-w-0"><label class="lx-label" for="salesSearch">搜索商品</label><input id="salesSearch" class="lx-input" placeholder="关键字" /></div>
-          <div class="min-w-0"><label class="lx-label" for="salesCategoryFilter">分类筛选</label><select id="salesCategoryFilter"><option value="">全部分类</option></select></div>
+          <div class="lx-span-2 min-w-0"><label class="lx-label" for="salesSearch">搜索商品</label><input id="salesSearch" class="lx-input" placeholder="关键字" /></div>
         </form>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table">
-            <thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>分类</th><th>付款</th><th>客户</th><th>数量</th><th>售价</th><th>成本</th><th>小计</th><th>已收</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
+            <thead><tr><th>日期</th><th>仓库</th><th>商品</th><th>付款</th><th>客户</th><th>数量</th><th>售价</th><th>成本</th><th>小计</th><th>已收</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
             <tbody id="salesTbody"></tbody>
           </table>
         </div>
@@ -206,7 +204,7 @@
         <form class="lx-form-grid" onsubmit="return false;">
           <div class="lx-span-2 min-w-0">
             <label class="lx-label" for="arSearchFilter">快速查找</label>
-            <input type="text" id="arSearchFilter" class="lx-input" placeholder="客户名、商品名；收款记录还可按备注筛选" list="customerList" autocomplete="off" />
+            <input type="text" id="arSearchFilter" class="lx-input" placeholder="客户名、商品名；收款记录还可按备注筛选" autocomplete="off" />
           </div>
         </form>
       </div>
@@ -214,7 +212,7 @@
         <h3 class="lx-section-title">登记收款（按客户自动核销最早赊欠）</h3>
         <form id="receiptForm" class="lx-form-grid">
           <div class="min-w-0"><label class="lx-label" for="rcDate">日期</label><input type="date" id="rcDate" class="lx-input" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="rcCustomer">客户</label><input type="text" id="rcCustomer" class="lx-input" list="customerList" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="rcCustomer">客户</label><input type="text" id="rcCustomer" class="lx-input" list="customerList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="rcAmount">收款金额</label><input type="number" id="rcAmount" class="lx-input" min="0.01" step="0.01" required /></div>
           <div class="lx-span-2 min-w-0"><label class="lx-label" for="rcNote">备注</label><input type="text" id="rcNote" class="lx-input" placeholder="可选" /></div>
           <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">保存收款</button></div>
@@ -260,8 +258,9 @@
         <form id="adjustForm" class="lx-form-grid">
           <div class="min-w-0"><label class="lx-label" for="aDate">日期</label><input type="date" id="aDate" class="lx-input" required /></div>
           <div class="min-w-0"><label class="lx-label" for="aWarehouse">仓库</label><select id="aWarehouse"></select></div>
-          <div class="min-w-0"><label class="lx-label" for="aProduct">商品名称</label><input type="text" id="aProduct" class="lx-input" list="productList" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="aProduct">商品名称</label><input type="text" id="aProduct" class="lx-input" list="productList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="aQty">调整数量(可正可负)</label><input type="number" id="aQty" class="lx-input" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="aUnit">单位</label><select id="aUnit"></select></div>
           <div class="lx-span-2 min-w-0"><label class="lx-label" for="aReason">调整原因</label><input type="text" id="aReason" class="lx-input" required /></div>
           <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增调整</button></div>
         </form>
@@ -270,8 +269,9 @@
         <h3 class="lx-section-title">仓间调拨</h3>
         <form id="transferForm" class="lx-form-grid">
           <div class="min-w-0"><label class="lx-label" for="tDate">日期</label><input type="date" id="tDate" class="lx-input" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="tProduct">商品</label><input type="text" id="tProduct" class="lx-input" list="productList" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="tProduct">商品</label><input type="text" id="tProduct" class="lx-input" list="productList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="tQty">数量</label><input type="number" id="tQty" class="lx-input" min="0.01" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="tUnit">单位</label><select id="tUnit"></select></div>
           <div class="min-w-0"><label class="lx-label" for="tFrom">从仓库</label><select id="tFrom"></select></div>
           <div class="min-w-0"><label class="lx-label" for="tTo">到仓库</label><select id="tTo"></select></div>
           <div class="lx-span-2 min-w-0"><label class="lx-label" for="tNote">备注</label><input type="text" id="tNote" class="lx-input" /></div>
@@ -286,7 +286,7 @@
           <p class="lx-muted">当前库存（按仓库）</p>
         </div>
         <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>仓库</th><th>商品</th><th>分类</th><th>库存数量</th><th>库存均价</th><th>库存成本</th></tr></thead><tbody id="inventoryTbody"></tbody></table>
+          <table class="lx-table"><thead><tr><th>仓库</th><th>商品</th><th>库存数量</th><th>库存均价</th><th>库存成本</th></tr></thead><tbody id="inventoryTbody"></tbody></table>
         </div>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
@@ -315,7 +315,6 @@
           <div class="min-w-0"><label class="lx-label" for="fEnd">结束日期</label><input type="date" id="fEnd" class="lx-input" /></div>
           <div class="min-w-0"><label class="lx-label" for="fWarehouse">仓库</label><select id="fWarehouse"><option value="">全部仓库</option></select></div>
           <div class="min-w-0"><label class="lx-label" for="fGroup">利润粒度</label><select id="fGroup"><option value="day">按日</option><option value="week">按周</option><option value="month">按月</option></select></div>
-          <div class="min-w-0"><label class="lx-label" for="fCategory">分类筛选</label><select id="fCategory"><option value="">全部分类</option></select></div>
           <div class="min-w-0 flex flex-wrap items-end gap-2">
             <button class="lx-btn-primary" type="submit">查询统计</button>
             <button class="lx-btn-secondary" type="button" id="resetFilterBtn">重置</button>
@@ -349,18 +348,12 @@
       <p class="lx-muted mt-2">商品销售统计</p>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>商品</th><th>分类</th><th>进货量</th><th>销售量</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="productStatsTbody"></tbody></table>
-        </div>
-      </div>
-      <p class="lx-muted mt-2">按品类统计</p>
-      <div class="lx-card !p-0 overflow-hidden">
-        <div class="lx-table-wrap border-0 shadow-none">
-          <table class="lx-table"><thead><tr><th>品类</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润贡献占比</th></tr></thead><tbody id="categoryStatsTbody"></tbody></table>
+          <table class="lx-table"><thead><tr><th>商品</th><th>进货量</th><th>销售量</th><th>销售额</th><th>销售成本</th><th>利润</th><th>利润率</th></tr></thead><tbody id="productStatsTbody"></tbody></table>
         </div>
       </div>
       <div class="lx-card space-y-5">
         <h3 class="lx-section-title !mb-0">畅销榜</h3>
-        <p class="lx-muted text-[13px] leading-relaxed">统计所选期间内的<strong>销售单</strong>数量与销售额。下方「畅销榜」起止日期可单独填写；若留空，则使用上方「开始日期」「结束日期」。仓库、分类仍与上方筛选一致。</p>
+        <p class="lx-muted text-[13px] leading-relaxed">统计所选期间内的<strong>销售单</strong>数量与销售额。下方「畅销榜」起止日期可单独填写；若留空，则使用上方「开始日期」「结束日期」。仓库筛选与上方一致。</p>
         <form id="bestsellerForm" class="lx-form-grid" onsubmit="return false;">
           <div class="min-w-0"><label class="lx-label" for="bsStart">畅销榜开始日期</label><input type="date" id="bsStart" class="lx-input" /></div>
           <div class="min-w-0"><label class="lx-label" for="bsEnd">畅销榜结束日期</label><input type="date" id="bsEnd" class="lx-input" /></div>
@@ -370,10 +363,6 @@
         <div class="lx-table-wrap">
           <table class="lx-table"><thead><tr><th>名次</th><th>商品</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerProductTbody"></tbody></table>
         </div>
-        <p class="lx-muted">按分类（按销售额排序）</p>
-        <div class="lx-table-wrap">
-          <table class="lx-table"><thead><tr><th>名次</th><th>分类</th><th>销售数量</th><th>销售额</th></tr></thead><tbody id="bestsellerCategoryTbody"></tbody></table>
-        </div>
       </div>
     </section>
 
@@ -381,7 +370,7 @@
       <h2 class="lx-page-title">基础设置</h2>
       <div class="lx-card space-y-3">
         <h3 class="lx-section-title !mb-0">数据导出</h3>
-        <p class="lx-muted text-[13px] leading-relaxed">一键导出当前系统中的仓库、分类、进货、销售、收款、调拨、库存调整等全部业务数据，生成多工作表 Excel（.xlsx）。需能加载 SheetJS 脚本（联网首次打开页面）。</p>
+        <p class="lx-muted text-[13px] leading-relaxed">一键导出当前系统中的仓库、单位、商品/客户/供应商档案、进货、销售、收款、调拨、库存调整等全部业务数据，生成多工作表 Excel（.xlsx）。需能加载 SheetJS 脚本（联网首次打开页面）。</p>
         <button type="button" id="exportAllExcelBtn" class="lx-btn-primary w-full sm:w-auto">一键下载全部数据（Excel）</button>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
@@ -400,31 +389,74 @@
       </div>
       <div class="lx-card !p-0 overflow-hidden">
         <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-          <h3 class="lx-section-title !mb-0">分类管理</h3>
+          <h3 class="lx-section-title !mb-0">单位管理</h3>
         </div>
         <div class="p-6">
-          <form id="categoryForm" class="lx-form-grid">
-            <div class="min-w-0"><label class="lx-label" for="newCategory">新分类名称</label><input id="newCategory" class="lx-input" placeholder="例如：管材类" /></div>
-            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增分类</button></div>
+          <form id="unitForm" class="lx-form-grid">
+            <div class="min-w-0"><label class="lx-label" for="newUnit">新单位名称</label><input id="newUnit" class="lx-input" placeholder="例如：箱" /></div>
+            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增单位</button></div>
           </form>
         </div>
         <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
-          <table class="lx-table"><thead><tr><th>分类名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="categoryTbody"></tbody></table>
+          <table class="lx-table"><thead><tr><th>单位名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="unitTbody"></tbody></table>
+        </div>
+      </div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">商品档案</h3>
+        </div>
+        <div class="p-6">
+          <form id="productDefForm" class="lx-form-grid">
+            <div class="min-w-0"><label class="lx-label" for="newProductDef">新商品名称</label><input id="newProductDef" class="lx-input" placeholder="建档后可在单据中联想" /></div>
+            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增商品</button></div>
+          </form>
+        </div>
+        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
+          <table class="lx-table"><thead><tr><th>商品名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="productDefTbody"></tbody></table>
+        </div>
+      </div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">客户档案</h3>
+        </div>
+        <div class="p-6">
+          <form id="customerDefForm" class="lx-form-grid">
+            <div class="min-w-0"><label class="lx-label" for="newCustomerDef">新客户名称</label><input id="newCustomerDef" class="lx-input" placeholder="建档后可在单据中联想" /></div>
+            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增客户</button></div>
+          </form>
+        </div>
+        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
+          <table class="lx-table"><thead><tr><th>客户名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="customerDefTbody"></tbody></table>
+        </div>
+      </div>
+      <div class="lx-card !p-0 overflow-hidden">
+        <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800">
+          <h3 class="lx-section-title !mb-0">供应商档案</h3>
+        </div>
+        <div class="p-6">
+          <form id="supplierDefForm" class="lx-form-grid">
+            <div class="min-w-0"><label class="lx-label" for="newSupplierDef">新供应商名称</label><input id="newSupplierDef" class="lx-input" placeholder="建档后可在单据中联想" /></div>
+            <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增供应商</button></div>
+          </form>
+        </div>
+        <div class="lx-table-wrap border-0 border-t border-slate-100 shadow-none dark:border-slate-800">
+          <table class="lx-table"><thead><tr><th>供应商名</th><th>重命名为</th><th>操作</th></tr></thead><tbody id="supplierDefTbody"></tbody></table>
         </div>
       </div>
     </section>
 
     <datalist id="productList"></datalist>
     <datalist id="customerList"></datalist>
+    <datalist id="supplierList"></datalist>
     <input id="backupFileInput" type="file" accept=".json,application/json" class="hidden" />
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260519"></script>
+  <script src="lingxin-ims-app.js?v=20260602"></script>
   <script>
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./service-worker.js?v=20260520").catch(function (err) {
+        navigator.serviceWorker.register("./service-worker.js?v=20260602").catch(function (err) {
           console.log("SW 注册失败:", err);
         });
       });

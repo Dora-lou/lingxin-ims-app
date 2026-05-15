@@ -27,53 +27,48 @@
   height: 100%;
 }
 
-/* 移动端：堆叠行布局（配合 data-label）
- * 不用 display:block 在 tbody/tr 上：部分 WebKit（尤其 iOS）会只渲染前几行后“消失”。 */
-@media (max-width: 720px) {
-  .lx-table-wrap table {
-    display: block;
-    width: 100%;
+/* 移动端：宽表用「横向滚动 + 紧凑表格」代替「每格一行」卡片式，否则销售等十几列会把一条单据拉得极长，一屏只能看到一两条。
+ * 需要看更多行时：左右滑看其余列；上下滑看更多单据。 */
+@media (max-width: 768px) {
+  .lx-table-wrap {
+    -webkit-overflow-scrolling: touch;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+  .lx-table-wrap table.lx-table {
+    display: table;
+    width: max-content;
+    min-width: 100%;
+    font-size: 0.8125rem;
     border-collapse: separate;
     border-spacing: 0;
   }
-  .lx-table-wrap table thead {
-    display: none;
+  .lx-table-wrap table.lx-table thead {
+    display: table-header-group;
   }
-  .lx-table-wrap tbody {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    width: 100%;
+  .lx-table-wrap table.lx-table tbody {
+    display: table-row-group;
   }
-  .lx-table-wrap tr {
-    display: flex;
-    flex-direction: column;
-    width: 100%;
-    box-sizing: border-box;
-    border-radius: 1rem;
-    border: 1px solid rgb(226 232 240 / 0.9);
-    padding: 0.5rem 0.25rem;
-    background: rgb(255 255 255 / 0.95);
+  .lx-table-wrap table.lx-table tr {
+    display: table-row;
   }
-  [data-theme="dark"] .lx-table-wrap tr {
-    border-color: rgb(51 65 85 / 0.8);
-    background: rgb(15 23 42 / 0.5);
+  .lx-table-wrap table.lx-table th,
+  .lx-table-wrap table.lx-table td {
+    display: table-cell;
+    padding: 0.4rem 0.45rem;
+    vertical-align: middle;
+    white-space: nowrap;
+    max-width: 9.5rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
-  .lx-table-wrap td {
-    border: none;
-    padding: 0.5rem 0.75rem;
-    display: flex;
-    justify-content: space-between;
-    gap: 0.75rem;
-    align-items: flex-start;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    word-break: break-word;
+  .lx-table-wrap table.lx-table thead th {
+    font-size: 0.65rem;
+    letter-spacing: 0.02em;
   }
-  .lx-table-wrap td::before {
-    content: attr(data-label);
-    color: var(--muted);
-    font-size: 0.75rem;
-    flex-shrink: 0;
+  /* 首列略宽，方便辨认日期/名称；仍单行显示 */
+  .lx-table-wrap table.lx-table th:first-child,
+  .lx-table-wrap table.lx-table td:first-child {
+    max-width: 6.5rem;
   }
 }
