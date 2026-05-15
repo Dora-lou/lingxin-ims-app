@@ -487,6 +487,52 @@
     localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify(cfg));
   }
 
+  function buildCloudConfigFromModalInputs(fallback) {
+    const cur = fallback || loadCloudConfig() || {};
+    const url = String(document.getElementById("m_url")?.value || "").trim() || cur.url || "";
+    const anonKey = String(document.getElementById("m_key")?.value || "").trim() || cur.anonKey || "";
+    const bucket = String(document.getElementById("m_bucket")?.value || "").trim() || cur.bucket || "lingxin-ims";
+    const code = String(document.getElementById("m_code")?.value || "").trim() || cur.code || "";
+    const objectPath = code ? `sync/${encodeURIComponent(code)}.json` : cur.objectPath || "";
+    return { url, anonKey, bucket, code, objectPath };
+  }
+
+  function persistCloudConfigFromModal() {
+    if (!document.getElementById("m_code")) return;
+    const next = buildCloudConfigFromModalInputs();
+    if (!next.url && !next.anonKey && !next.code && !next.bucket) return;
+    saveCloudConfig(next);
+  }
+
+  function wireCloudModalAutoSave() {
+    const ids = ["m_url", "m_key", "m_bucket", "m_code"];
+    let t = null;
+    function schedule() {
+      if (t) clearTimeout(t);
+      t = setTimeout(persistCloudConfigFromModal, 300);
+    }
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.addEventListener("input", schedule);
+      el.addEventListener("change", persistCloudConfigFromModal);
+      el.addEventListener("blur", persistCloudConfigFromModal);
+    });
+    const overlay = document.getElementById("modalOverlay");
+    if (overlay) {
+      overlay.querySelectorAll("[data-modal-close],[data-modal-cancel]").forEach((b) => {
+        b.addEventListener("click", persistCloudConfigFromModal, { capture: true });
+      });
+      overlay.addEventListener(
+        "click",
+        (e) => {
+          if (e.target === overlay) persistCloudConfigFromModal();
+        },
+        { capture: true }
+      );
+    }
+  }
+
   async function cloudPull(cfg) {
     const url = String(cfg?.url || "").replace(/\/+$/, "");
     const anonKey = String(cfg?.anonKey || "");
@@ -651,6 +697,7 @@
     }
 
     function close() {
+      if (document.getElementById("m_code")) persistCloudConfigFromModal();
       overlay.classList.remove("show");
       overlay.setAttribute("aria-hidden", "true");
       overlay.innerHTML = "";
@@ -1962,41 +2009,32 @@
           <div class="form-group" style="grid-column:span 2"><label>Supabase anon key</label><input id="m_key" placeholder="ey..." value="${escapeHtml(cfg.anonKey || "")}"></div>
           <div class="form-group"><label>Bucket(默认)</label><input id="m_bucket" value="${escapeHtml(cfg.bucket || "lingxin-ims")}"></div>
           <div class="form-group"><label>同步码(建议手机号)</label><input id="m_code" placeholder="例如：13800138000" value="${escapeHtml(cfg.code || "")}"></div>
-          <div class="form-group" style="grid-column:span 2"><label>说明</label><input value="同一个同步码=同一套数据，多设备共用" disabled></div>
+          <div class="form-group" style="grid-column:span 2"><label>说明</label><input value="同一同步码=同一套数据；填写后会自动记住，下次打开无需重填" disabled></div>
           <div class="form-group"><button type="button" class="lx-btn-secondary" id="m_pull">从云端下载覆盖本机</button></div>
           <div class="form-group"><button type="button" class="lx-btn-secondary" id="m_push">上传本机到云端</button></div>
         </form>
       `;
         openModal("云同步设置", body, async () => {
-          const url = document.getElementById("m_url").value.trim();
-          const anonKey = document.getElementById("m_key").value.trim();
-          const bucket = document.getElementById("m_bucket").value.trim() || "lingxin-ims";
-          const code = document.getElementById("m_code").value.trim();
-          if (!url || !anonKey || !code) return alert("请填写 URL、anon key、同步码");
-          const objectPath = `sync/${encodeURIComponent(code)}.json`;
-          const next = { url, anonKey, bucket, code, objectPath };
+          const next = buildCloudConfigFromModalInputs();
+          if (!next.url || !next.anonKey || !next.code) return alert("请填写 URL、anon key、同步码");
           saveCloudConfig(next);
           alert("已保存云同步配置。请在本弹窗内点击「上传本机到云端」或「从云端下载覆盖本机」。（仅点保存不会上传数据）");
           return false;
         });
+
+        wireCloudModalAutoSave();
 
         const pullBtn = document.getElementById("m_pull");
         const pushBtn = document.getElementById("m_push");
         if (pullBtn)
           pullBtn.addEventListener("click", async () => {
             try {
-              const current = loadCloudConfig() || {};
-              const url = document.getElementById("m_url")?.value?.trim() || current.url;
-              const anonKey = document.getElementById("m_key")?.value?.trim() || current.anonKey;
-              const bucket = document.getElementById("m_bucket")?.value?.trim() || current.bucket || "lingxin-ims";
-              const code = document.getElementById("m_code")?.value?.trim() || current.code;
-              const objectPath = `sync/${encodeURIComponent(code)}.json`;
-              const cfg2 = { url, anonKey, bucket, code, objectPath };
+              const cfg2 = buildCloudConfigFromModalInputs();
+              if (!cfg2.url || !cfg2.anonKey || !cfg2.code) return alert("请填写 URL、anon key、同步码");
               saveCloudConfig(cfg2);
               if (
-                !confirmTypedPhrase(
-                  "即将用云端数据覆盖本机全部进销存（进货、销售、库存、应收、档案等），不可撤销。\n建议先关闭本弹窗，在顶部点「导出备份(JSON)」再操作。\n\n确定后请在下一步输入确认语。",
-                  "确认覆盖本机数据"
+                !confirm(
+                  "即将用云端数据覆盖本机全部进销存（进货、销售、库存、应收、档案等），本机现有数据将被替换，不可撤销。\n\n建议先点顶部「导出备份(JSON)」。\n\n确定继续？"
                 )
               )
                 return;
@@ -2013,13 +2051,8 @@
         if (pushBtn)
           pushBtn.addEventListener("click", async () => {
             try {
-              const current = loadCloudConfig() || {};
-              const url = document.getElementById("m_url")?.value?.trim() || current.url;
-              const anonKey = document.getElementById("m_key")?.value?.trim() || current.anonKey;
-              const bucket = document.getElementById("m_bucket")?.value?.trim() || current.bucket || "lingxin-ims";
-              const code = document.getElementById("m_code")?.value?.trim() || current.code;
-              const objectPath = `sync/${encodeURIComponent(code)}.json`;
-              const cfg2 = { url, anonKey, bucket, code, objectPath };
+              const cfg2 = buildCloudConfigFromModalInputs();
+              if (!cfg2.url || !cfg2.anonKey || !cfg2.code) return alert("请填写 URL、anon key、同步码");
               saveCloudConfig(cfg2);
               await cloudPush(cfg2, state);
               alert("已上传到云端");

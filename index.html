@@ -878,7 +878,7 @@
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260620"></script>
+  <script src="lingxin-ims-app.js?v=20260623"></script>
   <script>
     (function () {
       function isStandalone() {
@@ -910,7 +910,7 @@
     })();
     if ("serviceWorker" in navigator) {
       window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./service-worker.js?v=20260620").catch(function (err) {
+        navigator.serviceWorker.register("./service-worker.js?v=20260622").catch(function (err) {
           console.log("SW 注册失败:", err);
         });
       });
