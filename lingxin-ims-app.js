@@ -383,18 +383,16 @@
       } else if (ev.kind === "transfer") {
         const t = ev.row;
         const q = Math.max(0, num(t.qty));
-        if (!t.fromWarehouseId || !t.toWarehouseId || t.fromWarehouseId === t.toWarehouseId) continue;
+        if (!t.fromWarehouseId || !t.toWarehouseId || t.fromWarehouseId === t.toWarehouseId || q <= 0) continue;
         const kf = cellKey(t.fromWarehouseId, t.product);
         const kt = cellKey(t.toWarehouseId, t.product);
         const cf = getCell(inv, kf);
         const ct = getCell(inv, kt);
-        const take = Math.min(q, Math.max(0, cf.qty));
-        if (take <= 0) continue;
         const av = avgUnit(cf);
-        const costMove = take * av;
-        cf.qty -= take;
+        const costMove = q * av;
+        cf.qty -= q;
         cf.totalCost -= costMove;
-        ct.qty += take;
+        ct.qty += q;
         ct.totalCost += costMove;
       } else if (ev.kind === "adjustment") {
         const a = ev.row;
@@ -418,10 +416,9 @@
         const k = cellKey(s.warehouseId, s.product);
         const c = getCell(inv, k);
         const need = Math.max(0, num(s.qty));
-        const take = Math.min(need, Math.max(0, c.qty));
         const av = avgUnit(c);
-        const cost = take * av;
-        c.qty -= take;
+        const cost = need * av;
+        c.qty -= need;
         c.totalCost -= cost;
         saleCogs.set(s.id, cost);
       }
@@ -469,9 +466,84 @@
     recomputeArReceiptAllocations(state);
   }
 
-  function saveState(state) {
-    syncAllComputed(state);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  function isStorageQuotaError(err) {
+    if (!err) return false;
+    if (err.name === "QuotaExceededError") return true;
+    if (err.code === 22 || err.code === 1014) return true;
+    const msg = String(err.message || err);
+    return /quota|exceeded|storage full|磁盘|空间不足/i.test(msg);
+  }
+
+  function saveState(st) {
+    syncAllComputed(st);
+    const json = JSON.stringify(st);
+    try {
+      localStorage.setItem(STORAGE_KEY, json);
+    } catch (err) {
+      if (isStorageQuotaError(err)) {
+        const mb = (json.length / (1024 * 1024)).toFixed(2);
+        throw new Error(
+          "本机浏览器存储空间不足（约 " +
+            mb +
+            " MB），数据未能保存。安卓手机容量限制往往更严。\n\n建议：删除部分旧单据、用电脑导出备份后精简数据；vivo/华为/小米等自带浏览器请改用 Chrome 打开同一网址。"
+        );
+      }
+      throw err;
+    }
+  }
+
+  function normalizeCloudConfig(cfg) {
+    const c = cfg && typeof cfg === "object" ? cfg : {};
+    const url = String(c.url || "")
+      .trim()
+      .replace(/\/+$/, "");
+    const anonKey = String(c.anonKey || "").trim();
+    const bucket = String(c.bucket || "lingxin-ims").trim() || "lingxin-ims";
+    const code = String(c.code || "").trim();
+    const objectPath = code ? `sync/${encodeURIComponent(code)}.json` : String(c.objectPath || "").trim();
+    return { url, anonKey, bucket, code, objectPath };
+  }
+
+  function supabaseStorageObjectUrls(cfg, access) {
+    const n = normalizeCloudConfig(cfg);
+    if (!n.url || !n.objectPath) return [];
+    const bucket = encodeURIComponent(n.bucket);
+    const pathSegs = n.objectPath.split("/").filter(Boolean).map((seg) => encodeURIComponent(decodeURIComponent(seg)));
+    const path = pathSegs.join("/");
+    const kind = access === "public" ? "public/" : "";
+    return [`${n.url}/storage/v1/object/${kind}${bucket}/${path}`];
+  }
+
+  function androidBrowserLabel() {
+    const ua = String(navigator.userAgent || "");
+    if (/VivoBrowser/i.test(ua)) return "vivo 自带浏览器";
+    if (/MicroMessenger/i.test(ua)) return "微信";
+    if (/MQQBrowser|QQ\//i.test(ua)) return "QQ";
+    if (/HuaweiBrowser|HiBrowser/i.test(ua)) return "华为浏览器";
+    if (/MiuiBrowser/i.test(ua)) return "小米浏览器";
+    if (/HeyTapBrowser/i.test(ua)) return "系统浏览器";
+    if (/UCBrowser/i.test(ua)) return "UC 浏览器";
+    return "当前浏览器";
+  }
+
+  function isCloudSyncRiskyBrowser() {
+    const ua = String(navigator.userAgent || "");
+    if (/MicroMessenger|MQQBrowser|QQ\//i.test(ua)) return true;
+    if (/VivoBrowser|HuaweiBrowser|HiBrowser|MiuiBrowser|HeyTapBrowser|UCBrowser/i.test(ua)) return true;
+    return false;
+  }
+
+  function cloudDataSummary(st) {
+    const s = st || {};
+    return (
+      "进货 " +
+      (s.purchases || []).length +
+      " 条，销售 " +
+      (s.sales || []).length +
+      " 条，收款 " +
+      (s.receipts || []).length +
+      " 条"
+    );
   }
 
   function loadCloudConfig() {
@@ -484,17 +556,16 @@
   }
 
   function saveCloudConfig(cfg) {
-    localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify(cfg));
+    localStorage.setItem(CLOUD_SYNC_KEY, JSON.stringify(normalizeCloudConfig(cfg)));
   }
 
   function buildCloudConfigFromModalInputs(fallback) {
-    const cur = fallback || loadCloudConfig() || {};
+    const cur = normalizeCloudConfig(fallback || loadCloudConfig() || {});
     const url = String(document.getElementById("m_url")?.value || "").trim() || cur.url || "";
     const anonKey = String(document.getElementById("m_key")?.value || "").trim() || cur.anonKey || "";
     const bucket = String(document.getElementById("m_bucket")?.value || "").trim() || cur.bucket || "lingxin-ims";
     const code = String(document.getElementById("m_code")?.value || "").trim() || cur.code || "";
-    const objectPath = code ? `sync/${encodeURIComponent(code)}.json` : cur.objectPath || "";
-    return { url, anonKey, bucket, code, objectPath };
+    return normalizeCloudConfig({ url, anonKey, bucket, code });
   }
 
   function persistCloudConfigFromModal() {
@@ -533,47 +604,92 @@
     }
   }
 
-  async function cloudPull(cfg) {
-    const url = String(cfg?.url || "").replace(/\/+$/, "");
-    const anonKey = String(cfg?.anonKey || "");
-    const bucket = String(cfg?.bucket || "lingxin-ims");
-    const objectPath = String(cfg?.objectPath || "");
-    if (!url || !anonKey || !objectPath) throw new Error("云同步未配置完整（URL/Key/同步码）");
-
-    const objUrl = `${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectPath}`;
-    const res = await fetch(objUrl, {
-      headers: { apikey: anonKey, Authorization: `Bearer ${anonKey}` },
-      cache: "no-store",
-    });
-    if (res.status === 404) return null;
-    if (!res.ok) {
-      const detail = (await res.text().catch(() => "")).slice(0, 400);
-      throw new Error("云端下载失败：" + res.status + (detail ? "\n" + detail : ""));
+  async function storageFetch(cfg, method, body) {
+    const n = normalizeCloudConfig(cfg);
+    if (!n.url || !n.anonKey || !n.objectPath) throw new Error("云同步未配置完整（URL/Key/同步码）");
+    const headers = {
+      apikey: n.anonKey,
+      Authorization: `Bearer ${n.anonKey}`,
+    };
+    if (body != null) {
+      headers["Content-Type"] = "application/json";
+      headers["x-upsert"] = "true";
     }
+    const fetchOpts = {
+      method: method || "GET",
+      headers,
+      cache: "no-store",
+      mode: "cors",
+      credentials: "omit",
+    };
+    if (body != null) fetchOpts.body = body;
+
+    const tryUrls =
+      method === "GET"
+        ? [...supabaseStorageObjectUrls(n, "private"), ...supabaseStorageObjectUrls(n, "public")]
+        : supabaseStorageObjectUrls(n, "private");
+
+    let lastErr = null;
+    for (let i = 0; i < tryUrls.length; i++) {
+      const objUrl = tryUrls[i];
+      const isPublic = objUrl.includes("/object/public/");
+      const opts = { ...fetchOpts };
+      if (isPublic) {
+        opts.headers = { Accept: "application/json" };
+      }
+      let res;
+      try {
+        res = await fetch(objUrl, opts);
+      } catch (netErr) {
+        lastErr = netErr;
+        continue;
+      }
+      if (method === "GET" && res.status === 404) {
+        if (i < tryUrls.length - 1) continue;
+        return { res, objUrl };
+      }
+      if (res.ok || (method === "GET" && res.status === 404)) return { res, objUrl };
+      if (method === "GET" && (res.status === 401 || res.status === 400) && i < tryUrls.length - 1) continue;
+      const detail = (await res.text().catch(() => "")).slice(0, 400);
+      lastErr = new Error(res.status + (detail ? "\n" + detail : ""));
+      if (method === "GET" && i < tryUrls.length - 1) continue;
+      throw new Error((method === "GET" ? "云端下载失败：" : "云端上传失败：") + res.status + (detail ? "\n" + detail : ""));
+    }
+    if (lastErr) {
+      const msg = lastErr && lastErr.message ? lastErr.message : String(lastErr);
+      if (/failed to fetch|networkerror|load failed/i.test(msg)) {
+        throw new Error(
+          "无法连接云端（网络错误）。" +
+            (isCloudSyncRiskyBrowser()
+              ? "\n\n您正在使用「" +
+                androidBrowserLabel() +
+                "」，该浏览器常拦截云同步。请安装 Chrome，用 Chrome 打开本网站后再试。"
+              : "\n\n安卓请用 Chrome 打开网站，不要用微信/QQ/vivo 自带浏览器；并确认能正常上网。")
+        );
+      }
+      throw lastErr;
+    }
+    throw new Error("无法连接云端");
+  }
+
+  async function cloudPull(cfg) {
+    const { res } = await storageFetch(cfg, "GET");
+    if (res.status === 404) return null;
     const text = await res.text();
-    const parsed = JSON.parse(text);
+    if (!text || !text.trim()) throw new Error("云端文件为空");
+    let parsed;
+    try {
+      parsed = JSON.parse(text);
+    } catch (e) {
+      throw new Error("云端数据不是有效 JSON，请用电脑重新上传");
+    }
     return migrateIfNeeded(parsed?.data || parsed);
   }
 
   async function cloudPush(cfg, state) {
-    const url = String(cfg?.url || "").replace(/\/+$/, "");
-    const anonKey = String(cfg?.anonKey || "");
-    const bucket = String(cfg?.bucket || "lingxin-ims");
-    const objectPath = String(cfg?.objectPath || "");
-    if (!url || !anonKey || !objectPath) throw new Error("云同步未配置完整（URL/Key/同步码）");
     syncAllComputed(state);
     const payload = JSON.stringify({ savedAt: new Date().toISOString(), data: state });
-    const objUrl = `${url}/storage/v1/object/${encodeURIComponent(bucket)}/${objectPath}`;
-    const res = await fetch(objUrl, {
-      method: "PUT",
-      headers: {
-        apikey: anonKey,
-        Authorization: `Bearer ${anonKey}`,
-        "Content-Type": "application/json",
-        "x-upsert": "true",
-      },
-      body: payload,
-    });
+    const { res } = await storageFetch(cfg, "PUT", payload);
     if (!res.ok) {
       const detail = (await res.text().catch(() => "")).slice(0, 400);
       throw new Error("云端上传失败：" + res.status + (detail ? "\n" + detail : ""));
@@ -1644,7 +1760,7 @@
         .forEach((k) => {
           const [whId, prod] = k.split("|||");
           const c = inv.get(k);
-          if (num(c.qty) < 0.0001 && num(c.totalCost) < 0.0001) return;
+          if (Math.abs(num(c.qty)) < 0.0001 && Math.abs(num(c.totalCost)) < 0.0001) return;
           invRows.push({
             仓库: whName(state, whId),
             商品: prod,
@@ -2002,7 +2118,15 @@
       const trigger = e.target && e.target.closest && e.target.closest("#cloudSyncBtn");
       if (!trigger) return;
       try {
-        const cfg = loadCloudConfig() || {};
+        if (isCloudSyncRiskyBrowser()) {
+          const go = confirm(
+            "检测到您正在使用「" +
+              androidBrowserLabel() +
+              "」。\n\n这类浏览器云同步经常失败（能上传但下载不了、或下载后看不到数据）。\n\n强烈建议：安装 Google Chrome，用 Chrome 打开本网站后再做云同步。\n\n仍要继续用当前浏览器试一次吗？"
+          );
+          if (!go) return;
+        }
+        const cfg = normalizeCloudConfig(loadCloudConfig() || {});
         const body = `
         <form class="form-grid" onsubmit="return false;">
           <div class="form-group" style="grid-column:span 2"><label>Supabase URL</label><input id="m_url" placeholder="https://xxxx.supabase.co" value="${escapeHtml(cfg.url || "")}"></div>
@@ -2043,7 +2167,7 @@
               state = pulled;
               saveState(state);
               fullRender();
-              alert("已从云端下载并覆盖本机");
+              alert("已从云端下载并覆盖本机\n" + cloudDataSummary(state));
             } catch (err) {
               alert(err && err.message ? err.message : String(err));
             }
@@ -2272,9 +2396,6 @@
           if (next.customerName) ensureMasterDef(state, "customerDefs", next.customerName);
           next.amount = +(num(next.qty) * num(next.price)).toFixed(2);
           next.paidAtSale = Math.min(next.amount, next.paidAtSale);
-
-          const avail = ledgerAvailableAfterRemovingSale(id, next.warehouseId, next.product);
-          if (next.qty > avail + 1e-6) return alert("库存不足（当前仓可用 " + avail.toFixed(2) + "）");
 
           state.sales = state.sales.map((x) => (x.id === id ? next : x));
           saveState(state);
@@ -2692,7 +2813,7 @@
       const [whId, prod] = k.split("|||");
       if (whF && whId !== whF) return;
       const c = inv.get(k);
-      if (num(c.qty) < 0.0001 && num(c.totalCost) < 0.0001) return;
+      if (Math.abs(num(c.qty)) < 0.0001 && Math.abs(num(c.totalCost)) < 0.0001) return;
       invRows.push({ whId, prod, c });
     });
     const invMeta = paginateWithPager("inventory", invRows);
@@ -3002,9 +3123,6 @@
 
     const wh = els.sWarehouse.value;
     const prod = els.sProduct.value.trim();
-    const avail = stockAvailable(wh, prod);
-    if (qty > avail + 1e-6) return alert("库存不足（当前仓可用 " + avail.toFixed(2) + "）");
-
     const row = {
       id: uid(),
       date: els.sDate.value,
@@ -3092,8 +3210,6 @@
     const qty = num(els.tQty.value);
     const prod = els.tProduct.value.trim();
     if (!prod) return alert("请填写商品");
-    const avail = stockAvailable(from, prod);
-    if (qty > avail + 1e-6) return alert("源仓库存不足（可用 " + avail.toFixed(2) + "）");
     ensureMasterDef(state, "productDefs", prod, { unitId: (els.tUnit && els.tUnit.value) || defaultUnitId(state) });
     state.transfers.push({
       id: uid(),

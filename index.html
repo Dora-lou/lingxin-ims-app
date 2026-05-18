@@ -133,6 +133,11 @@
   <link rel="stylesheet" href="lingxin-ims.css?v=20260603" />
 </head>
 <body class="min-h-screen bg-slate-50 antialiased transition-colors duration-300 dark:bg-slate-950">
+  <div id="lx-android-browser-banner" class="lx-ios-install-banner hidden" role="status" aria-live="polite">
+    <p class="font-semibold text-amber-800 dark:text-amber-300">云同步建议用 Chrome（当前为 vivo 等自带浏览器）</p>
+    <p class="mt-1 text-slate-600 dark:text-slate-300">vivo、华为、小米等<strong>自带浏览器</strong>常无法稳定访问云端或保存数据。请安装 <strong>Chrome</strong>，在 Chrome 地址栏打开<strong>与电脑相同的完整网址</strong>，再点「云同步 → 从云端下载」。</p>
+    <button type="button" id="lx-android-browser-dismiss" class="lx-btn-secondary mt-2 text-xs">知道了，本次不再提示</button>
+  </div>
   <div id="lx-ios-install-banner" class="lx-ios-install-banner hidden" role="status" aria-live="polite">
     <p class="font-semibold text-blue-800 dark:text-blue-300">当前是 Safari 网页模式（底部有网址栏）</p>
     <p class="mt-1 text-slate-600 dark:text-slate-300">要用全屏、无网址：必须用 <strong>Safari</strong> 点底部分享 → <strong>添加到主屏幕</strong>，再从主屏幕图标打开（不要点书签、不要留在 Safari 里）。若已有旧图标，请先删掉再重新添加。</p>
@@ -878,7 +883,7 @@
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260623"></script>
+  <script src="lingxin-ims-app.js?v=20260627"></script>
   <script>
     (function () {
       function isStandalone() {
@@ -905,6 +910,21 @@
         dismiss.addEventListener("click", function () {
           sessionStorage.setItem("lx_hide_ios_banner", "1");
           if (banner) banner.classList.add("hidden");
+        });
+      }
+    })();
+    (function () {
+      var ua = navigator.userAgent || "";
+      if (!/Android/i.test(ua)) return;
+      if (sessionStorage.getItem("lx_hide_android_browser_tip")) return;
+      if (!/VivoBrowser|HuaweiBrowser|HiBrowser|MiuiBrowser|HeyTapBrowser|UCBrowser/i.test(ua)) return;
+      var ab = document.getElementById("lx-android-browser-banner");
+      var abd = document.getElementById("lx-android-browser-dismiss");
+      if (ab) ab.classList.remove("hidden");
+      if (abd) {
+        abd.addEventListener("click", function () {
+          sessionStorage.setItem("lx_hide_android_browser_tip", "1");
+          if (ab) ab.classList.add("hidden");
         });
       }
     })();
