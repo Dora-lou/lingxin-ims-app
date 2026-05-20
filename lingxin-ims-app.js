@@ -3,6 +3,10 @@
 
   const STORAGE_KEY = "hardware_ims_v5";
   const LEGACY_STORAGE_KEYS = ["hardware_ims_v4", "hardware_ims_v3"];
+  const IDB_NAME = "lingxin_ims_db";
+  const IDB_VERSION = 1;
+  const IDB_STORE = "kv";
+  const IDB_MIGRATED_FLAG = "hardware_ims_v5_idb";
   const BACKUP_FILE_VERSION = 2;
   const REMINDER_DAYS = 7;
   const REMINDER_KEY = "hardware_ims_backup_reminder_v1";
@@ -87,7 +91,7 @@
     });
   }
 
-  function loadRaw() {
+  function loadRawFromLocalStorage() {
     try {
       const t = localStorage.getItem(STORAGE_KEY);
       if (t) return JSON.parse(t);
@@ -99,6 +103,91 @@
       } catch (e2) {}
     }
     return null;
+  }
+
+  let idbPromise = null;
+
+  function openIdb() {
+    if (idbPromise) return idbPromise;
+    idbPromise = new Promise((resolve, reject) => {
+      if (typeof indexedDB === "undefined") {
+        reject(new Error("当前浏览器不支持 IndexedDB，请改用 Chrome 或更新浏览器。"));
+        return;
+      }
+      const req = indexedDB.open(IDB_NAME, IDB_VERSION);
+      req.onerror = () => reject(req.error || new Error("无法打开 IndexedDB"));
+      req.onsuccess = () => resolve(req.result);
+      req.onupgradeneeded = (ev) => {
+        const db = ev.target.result;
+        if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+      };
+    });
+    return idbPromise;
+  }
+
+  function idbGet(key) {
+    return openIdb().then(
+      (db) =>
+        new Promise((resolve, reject) => {
+          const tx = db.transaction(IDB_STORE, "readonly");
+          const req = tx.objectStore(IDB_STORE).get(key);
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error || new Error("读取 IndexedDB 失败"));
+        })
+    );
+  }
+
+  function idbSet(key, value) {
+    return openIdb().then(
+      (db) =>
+        new Promise((resolve, reject) => {
+          const tx = db.transaction(IDB_STORE, "readwrite");
+          const req = tx.objectStore(IDB_STORE).put(value, key);
+          req.onsuccess = () => resolve();
+          req.onerror = () => reject(req.error || new Error("写入 IndexedDB 失败"));
+          tx.onerror = () => reject(tx.error || new Error("写入 IndexedDB 失败"));
+        })
+    );
+  }
+
+  function parseStoredState(raw) {
+    if (raw == null) return null;
+    if (typeof raw === "string") {
+      try {
+        return JSON.parse(raw);
+      } catch (e) {
+        return null;
+      }
+    }
+    if (typeof raw === "object") return raw;
+    return null;
+  }
+
+  async function loadRawAsync() {
+    try {
+      const fromIdb = parseStoredState(await idbGet(STORAGE_KEY));
+      if (fromIdb) return fromIdb;
+    } catch (e) {
+      console.warn("IndexedDB 读取失败，尝试 localStorage", e);
+    }
+    const fromLs = loadRawFromLocalStorage();
+    if (fromLs) {
+      try {
+        await idbSet(STORAGE_KEY, fromLs);
+        try {
+          localStorage.setItem(IDB_MIGRATED_FLAG, new Date().toISOString());
+          localStorage.removeItem(STORAGE_KEY);
+        } catch (e2) {}
+      } catch (e) {
+        console.warn("迁移到 IndexedDB 失败，仍使用 localStorage 数据", e);
+      }
+    }
+    return fromLs;
+  }
+
+  async function loadAppState() {
+    const raw = await loadRawAsync();
+    return migrateIfNeeded(raw);
   }
 
   function migrateIfNeeded(raw) {
@@ -228,6 +317,39 @@
     const id = uid();
     st.units.push({ id, name: t });
     return id;
+  }
+
+  function unitNameById(st, unitId) {
+    const u = (st.units || []).find((x) => x.id === unitId);
+    return u ? String(u.name || "").trim() : "";
+  }
+
+  function resolveUnitIdFromInput(st, raw) {
+    const t = String(raw || "").trim();
+    if (!t) return defaultUnitId(st);
+    const byName = (st.units || []).find((u) => String(u.name || "").trim() === t);
+    if (byName) return byName.id;
+    const byId = (st.units || []).find((u) => u.id === t);
+    if (byId) return byId.id;
+    return ensureUnitByName(st, t);
+  }
+
+  function upsertProductDef(st, productName, unitId) {
+    const t = String(productName || "").trim();
+    if (!t) return;
+    let uId = unitId;
+    if (!uId || !(st.units || []).some((u) => u.id === uId)) uId = defaultUnitId(st);
+    if (!Array.isArray(st.productDefs)) st.productDefs = [];
+    const i = st.productDefs.findIndex((x) => String(x.name || "").trim() === t);
+    if (i >= 0) st.productDefs[i] = { ...st.productDefs[i], unitId: uId };
+    else st.productDefs.push({ id: uid(), name: t, unitId: uId });
+  }
+
+  function unitNamesSorted(st) {
+    return (st.units || [])
+      .map((u) => String(u.name || "").trim())
+      .filter(Boolean)
+      .sort((a, b) => a.localeCompare(b, "zh-CN"));
   }
 
   function defNameTaken(st, defsKey, name, exceptId) {
@@ -474,22 +596,54 @@
     return /quota|exceeded|storage full|磁盘|空间不足/i.test(msg);
   }
 
+  let persistChain = Promise.resolve();
+  let pendingPersistState = null;
+  let persistFlushTimer = null;
+
+  function storageQuotaMessage(byteLen) {
+    const mb = (byteLen / (1024 * 1024)).toFixed(2);
+    return (
+      "本机存储空间不足（约 " +
+      mb +
+      " MB），数据未能保存。\n\n建议：导出 JSON 备份后删除部分旧单据；手机请用 Chrome 打开同一网址。数据已改用 IndexedDB，容量通常远大于原来的 localStorage。"
+    );
+  }
+
+  function flushStateToIdb() {
+    if (!pendingPersistState) return persistChain;
+    const st = pendingPersistState;
+    pendingPersistState = null;
+    const json = JSON.stringify(st);
+    persistChain = persistChain
+      .then(() => idbSet(STORAGE_KEY, st))
+      .catch((err) => {
+        if (isStorageQuotaError(err)) throw new Error(storageQuotaMessage(json.length));
+        throw err;
+      })
+      .catch((err) => {
+        alert(err && err.message ? err.message : String(err));
+        throw err;
+      });
+    return persistChain;
+  }
+
   function saveState(st) {
     syncAllComputed(st);
-    const json = JSON.stringify(st);
-    try {
-      localStorage.setItem(STORAGE_KEY, json);
-    } catch (err) {
-      if (isStorageQuotaError(err)) {
-        const mb = (json.length / (1024 * 1024)).toFixed(2);
-        throw new Error(
-          "本机浏览器存储空间不足（约 " +
-            mb +
-            " MB），数据未能保存。安卓手机容量限制往往更严。\n\n建议：删除部分旧单据、用电脑导出备份后精简数据；vivo/华为/小米等自带浏览器请改用 Chrome 打开同一网址。"
-        );
-      }
-      throw err;
-    }
+    pendingPersistState = st;
+    clearTimeout(persistFlushTimer);
+    persistFlushTimer = setTimeout(() => {
+      persistFlushTimer = null;
+      flushStateToIdb();
+    }, 150);
+    return persistChain;
+  }
+
+  function saveStateNow(st) {
+    syncAllComputed(st);
+    pendingPersistState = st;
+    clearTimeout(persistFlushTimer);
+    persistFlushTimer = null;
+    return flushStateToIdb();
   }
 
   function normalizeCloudConfig(cfg) {
@@ -891,8 +1045,7 @@
     const j = JSON.parse(text);
     const data = j.data && typeof j.data === "object" ? j.data : j;
     const s = migrateIfNeeded(data);
-    saveState(s);
-    return s;
+    return saveStateNow(s).then(() => s);
   }
 
   /** 多工作表 Excel：依赖页面引入的 SheetJS（window.XLSX） */
@@ -977,7 +1130,7 @@
             付款方式: pay,
             客户: s.customerName || "",
             数量: formatQtyCell(s.qty, state, s.unitId),
-            售价: num(s.price),
+            单价: num(s.price),
             销售成本: num(s.costAtSale),
             小计: num(s.amount),
             当场已收: Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))),
@@ -1477,9 +1630,20 @@
     return null;
   }
 
-  function setSelectUnitIfValid(selectEl, unitId) {
-    if (!selectEl || !unitId) return;
-    if ([...selectEl.options].some((o) => o.value === unitId)) selectEl.value = unitId;
+  function setUnitFieldIfValid(fieldEl, unitId) {
+    if (!fieldEl || !unitId) return;
+    if (fieldEl.tagName === "SELECT") {
+      if ([...fieldEl.options].some((o) => o.value === unitId)) fieldEl.value = unitId;
+      return;
+    }
+    const name = unitNameById(state, unitId);
+    if (name) fieldEl.value = name;
+  }
+
+  function applyResolvedProductUnit(productInputEl, unitFieldEl) {
+    if (!productInputEl || !unitFieldEl) return;
+    const unitId = resolvedUnitIdForProductInput(state, productInputEl.value);
+    if (unitId) setUnitFieldIfValid(unitFieldEl, unitId);
   }
 
   function filteredPurchaseRows(st, qLower) {
@@ -1672,7 +1836,7 @@
                 数量显示: formatQtyCell(s.qty, state, s.unitId),
                 付款方式: pay,
                 客户: s.customerName || "",
-                售价: num(s.price),
+                单价: num(s.price),
                 销售成本: num(s.costAtSale),
                 小计: num(s.amount),
                 当场已收: Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))),
@@ -1994,8 +2158,10 @@
   }
 
   /** -------- DOM App -------- */
-  let state = migrateIfNeeded(loadRaw());
-  saveState(state);
+  let state = defaultState();
+
+  function bootApp() {
+    saveState(state);
 
   const els = {
     themeBtn: document.getElementById("themeBtn"),
@@ -2004,6 +2170,7 @@
     exportAllExcelBtn: document.getElementById("exportAllExcelBtn"),
     backupFileInput: document.getElementById("backupFileInput"),
     productList: document.getElementById("productList"),
+    unitList: document.getElementById("unitList"),
     customerList: document.getElementById("customerList"),
     supplierList: document.getElementById("supplierList"),
     tabBtns: document.querySelectorAll(".tab-btn"),
@@ -2165,7 +2332,7 @@
               const pulled = await cloudPull(cfg2);
               if (!pulled) return alert("云端暂无数据（请先在另一台设备点「上传本机到云端」）");
               state = pulled;
-              saveState(state);
+              await saveStateNow(state);
               fullRender();
               alert("已从云端下载并覆盖本机\n" + cloudDataSummary(state));
             } catch (err) {
@@ -2213,10 +2380,12 @@
     fillSelect(els.tTo, whs, null);
     fillSelect(els.invWarehouseFilter, whs, "全部仓库");
     fillSelect(els.fWarehouse, whs, "全部仓库");
-    if (els.pUnit) fillSelect(els.pUnit, state.units, null);
-    if (els.sUnit) fillSelect(els.sUnit, state.units, null);
-    if (els.aUnit) fillSelect(els.aUnit, state.units, null);
-    if (els.tUnit) fillSelect(els.tUnit, state.units, null);
+    if (els.unitList) fillDatalist(els.unitList, unitNamesSorted(state));
+    const defaultUnitName = unitNameById(state, defaultUnitId(state));
+    [els.pUnit, els.sUnit, els.aUnit, els.tUnit].forEach((el) => {
+      if (!el) return;
+      if (!String(el.value || "").trim() && defaultUnitName) el.value = defaultUnitName;
+    });
     if (els.productList) refreshFilteredDatalist(els.productList, mergedProducts(state), "");
     if (els.customerList) refreshFilteredDatalist(els.customerList, mergedCustomers(state), "");
     if (els.supplierList) refreshFilteredDatalist(els.supplierList, mergedSuppliers(state), "");
@@ -2267,7 +2436,7 @@
             <div class="form-group"><label>供应商</label><input type="text" id="m_supplier" list="supplierList" autocomplete="off" value="${escapeHtml(p.supplier || "")}"></div>
             <div class="form-group"><label>商品</label><input type="text" id="m_product" list="productList" autocomplete="off" value="${escapeHtml(p.product || "")}"></div>
             <div class="form-group"><label>入库仓库</label><select id="m_warehouse">${optionsHtml(state.warehouses, p.warehouseId)}</select></div>
-            <div class="form-group"><label>单位</label><select id="m_unit">${optionsHtml(state.units, p.unitId || defaultUnitId(state))}</select></div>
+            <div class="form-group"><label>单位</label><input type="text" id="m_unit" list="unitList" autocomplete="off" value="${escapeHtml(unitNameById(state, p.unitId || defaultUnitId(state)))}"></div>
             <div class="form-group"><label>数量</label><input type="number" id="m_qty" step="0.01" value="${num(p.qty)}"></div>
             <div class="form-group"><label>单价</label><input type="number" id="m_price" step="0.01" value="${num(p.price)}"></div>
           </form>`;
@@ -2279,13 +2448,13 @@
             product: document.getElementById("m_product").value.trim(),
             categoryId: p.categoryId || defaultCategoryId(state),
             warehouseId: document.getElementById("m_warehouse").value,
-            unitId: document.getElementById("m_unit").value || defaultUnitId(state),
+            unitId: resolveUnitIdFromInput(state, document.getElementById("m_unit").value),
             qty: num(document.getElementById("m_qty").value),
             price: num(document.getElementById("m_price").value),
           };
           if (!next.product) return alert("请填写商品名称");
           ensureMasterDef(state, "supplierDefs", next.supplier);
-          ensureMasterDef(state, "productDefs", next.product, { unitId: next.unitId });
+          upsertProductDef(state, next.product, next.unitId);
           state.purchases = state.purchases.map((x) => (x.id === id ? next : x));
           saveState(state);
           fullRender();
@@ -2295,8 +2464,9 @@
           const mp = document.getElementById("m_product");
           const mu = document.getElementById("m_unit");
           if (mp && mu) {
-            mp.addEventListener("input", () => setSelectUnitIfValid(mu, resolvedUnitIdForProductInput(state, mp.value)));
-            setSelectUnitIfValid(mu, resolvedUnitIdForProductInput(state, mp.value));
+            mp.addEventListener("input", () => applyResolvedProductUnit(mp, mu));
+            mp.addEventListener("change", () => applyResolvedProductUnit(mp, mu));
+            applyResolvedProductUnit(mp, mu);
           }
         });
       });
@@ -2340,7 +2510,7 @@
         <td data-label="付款">${pay}</td>
         <td data-label="客户">${s.customerName || ""}</td>
         <td data-label="数量">${formatQtyCell(s.qty, state, s.unitId)}</td>
-        <td data-label="售价" class="lx-money">${money(s.price)}</td>
+        <td data-label="单价" class="lx-money">${money(s.price)}</td>
         <td data-label="成本" class="lx-money">${money(s.costAtSale)}</td>
         <td data-label="小计" class="lx-money">${money(s.amount)}</td>
         <td data-label="已收" class="lx-money">${money(Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))))}</td>
@@ -2370,9 +2540,9 @@
             <div class="form-group"><label>日期</label><input type="date" id="m_date" value="${escapeHtml(s.date)}"></div>
             <div class="form-group"><label>商品</label><input type="text" id="m_product" list="productList" autocomplete="off" value="${escapeHtml(s.product || "")}"></div>
             <div class="form-group"><label>出库仓库</label><select id="m_warehouse">${optionsHtml(state.warehouses, s.warehouseId)}</select></div>
-            <div class="form-group"><label>单位</label><select id="m_unit">${optionsHtml(state.units, s.unitId || defaultUnitId(state))}</select></div>
+            <div class="form-group"><label>单位</label><input type="text" id="m_unit" list="unitList" autocomplete="off" value="${escapeHtml(unitNameById(state, s.unitId || defaultUnitId(state)))}"></div>
             <div class="form-group"><label>数量</label><input type="number" id="m_qty" step="0.01" value="${num(s.qty)}"></div>
-            <div class="form-group"><label>售价</label><input type="number" id="m_price" step="0.01" value="${num(s.price)}"></div>
+            <div class="form-group"><label>单价</label><input type="number" id="m_price" step="0.01" value="${num(s.price)}"></div>
             <div class="form-group"><label>客户</label><input type="text" id="m_customer" list="customerList" autocomplete="off" value="${escapeHtml(s.customerName || "")}"></div>
             <div class="form-group"><label>当场已收</label><input type="number" id="m_paid" step="0.01" value="${num(s.paidAtSale)}"></div>
             <div class="form-group" style="grid-column:span 2"><label>买方</label><input type="text" id="m_buyer" value="${escapeHtml(s.buyer || "")}"></div>
@@ -2384,7 +2554,7 @@
             product: document.getElementById("m_product").value.trim(),
             categoryId: s.categoryId || defaultCategoryId(state),
             warehouseId: document.getElementById("m_warehouse").value,
-            unitId: document.getElementById("m_unit").value || defaultUnitId(state),
+            unitId: resolveUnitIdFromInput(state, document.getElementById("m_unit").value),
             qty: num(document.getElementById("m_qty").value),
             price: num(document.getElementById("m_price").value),
             customerName: document.getElementById("m_customer").value.trim(),
@@ -2392,7 +2562,7 @@
             buyer: document.getElementById("m_buyer").value.trim(),
           };
           if (!next.product) return alert("请填写商品名称");
-          ensureMasterDef(state, "productDefs", next.product, { unitId: next.unitId });
+          upsertProductDef(state, next.product, next.unitId);
           if (next.customerName) ensureMasterDef(state, "customerDefs", next.customerName);
           next.amount = +(num(next.qty) * num(next.price)).toFixed(2);
           next.paidAtSale = Math.min(next.amount, next.paidAtSale);
@@ -2406,8 +2576,9 @@
           const mp = document.getElementById("m_product");
           const mu = document.getElementById("m_unit");
           if (mp && mu) {
-            mp.addEventListener("input", () => setSelectUnitIfValid(mu, resolvedUnitIdForProductInput(state, mp.value)));
-            setSelectUnitIfValid(mu, resolvedUnitIdForProductInput(state, mp.value));
+            mp.addEventListener("input", () => applyResolvedProductUnit(mp, mu));
+            mp.addEventListener("change", () => applyResolvedProductUnit(mp, mu));
+            applyResolvedProductUnit(mp, mu);
           }
         });
       });
@@ -3090,13 +3261,13 @@
       product: els.pProduct.value.trim(),
       categoryId: defaultCategoryId(state),
       warehouseId: els.pWarehouse.value,
-      unitId: (els.pUnit && els.pUnit.value) || defaultUnitId(state),
+      unitId: resolveUnitIdFromInput(state, els.pUnit && els.pUnit.value),
       qty: num(els.pQty.value),
       price: num(els.pPrice.value),
     };
     if (!row.product) return alert("请填写商品名称");
     ensureMasterDef(state, "supplierDefs", row.supplier);
-    ensureMasterDef(state, "productDefs", row.product, { unitId: row.unitId });
+    upsertProductDef(state, row.product, row.unitId);
     state.purchases.push(row);
     saveState(state);
     els.pSupplier.value = "";
@@ -3104,6 +3275,20 @@
     els.pQty.value = "";
     els.pPrice.value = "";
     fullRender();
+  });
+
+  function salesFormLineAmount() {
+    return +(num(els.sQty?.value) * num(els.sPrice?.value)).toFixed(2);
+  }
+
+  function syncSalesPaidNowIfCash() {
+    if (!els.sPaymentType || els.sPaymentType.value !== "cash" || !els.sPaidNow) return;
+    els.sPaidNow.value = String(salesFormLineAmount());
+  }
+
+  ["input", "change"].forEach((ev) => {
+    els.sQty?.addEventListener(ev, syncSalesPaidNowIfCash);
+    els.sPrice?.addEventListener(ev, syncSalesPaidNowIfCash);
   });
 
   els.salesForm.addEventListener("submit", (e) => {
@@ -3115,11 +3300,10 @@
     const price = num(els.sPrice.value);
     const amount = +(qty * price).toFixed(2);
     if (paymentType === "credit" && !customerName) return alert("赊账必须填写客户");
-    if (paymentType === "cash" && paidNow > 0 && paidNow + 0.001 < amount)
-      return alert("现款销售若填写「本次收款」应为全额或留空");
-    let paidAtSale = 0;
-    if (paymentType === "cash") paidAtSale = amount;
-    else paidAtSale = Math.min(amount, Math.max(0, paidNow));
+    const paidAtSale =
+      paymentType === "cash"
+        ? Math.min(amount, paidNow > 0 ? paidNow : amount)
+        : Math.min(amount, Math.max(0, paidNow));
 
     const wh = els.sWarehouse.value;
     const prod = els.sProduct.value.trim();
@@ -3129,7 +3313,7 @@
       product: prod,
       categoryId: defaultCategoryId(state),
       warehouseId: wh,
-      unitId: (els.sUnit && els.sUnit.value) || defaultUnitId(state),
+      unitId: resolveUnitIdFromInput(state, els.sUnit && els.sUnit.value),
       qty,
       price,
       amount,
@@ -3139,7 +3323,7 @@
       paidAtSale,
       arReceiptAllocated: 0,
     };
-    ensureMasterDef(state, "productDefs", prod, { unitId: row.unitId });
+    upsertProductDef(state, prod, row.unitId);
     if (customerName) ensureMasterDef(state, "customerDefs", customerName);
     state.sales.push(row);
     saveState(state);
@@ -3187,13 +3371,13 @@
       date: els.aDate.value,
       warehouseId: els.aWarehouse.value,
       product: els.aProduct.value.trim(),
-      unitId: (els.aUnit && els.aUnit.value) || defaultUnitId(state),
+      unitId: resolveUnitIdFromInput(state, els.aUnit && els.aUnit.value),
       qty: num(els.aQty.value),
       reason: els.aReason.value.trim(),
     };
     if (!row.product) return alert("请填写商品");
     if (!row.reason) return alert("请填写原因");
-    ensureMasterDef(state, "productDefs", row.product, { unitId: row.unitId });
+    upsertProductDef(state, row.product, row.unitId);
     state.adjustments.push(row);
     saveState(state);
     els.aProduct.value = "";
@@ -3210,12 +3394,13 @@
     const qty = num(els.tQty.value);
     const prod = els.tProduct.value.trim();
     if (!prod) return alert("请填写商品");
-    ensureMasterDef(state, "productDefs", prod, { unitId: (els.tUnit && els.tUnit.value) || defaultUnitId(state) });
+    const tUnitId = resolveUnitIdFromInput(state, els.tUnit && els.tUnit.value);
+    upsertProductDef(state, prod, tUnitId);
     state.transfers.push({
       id: uid(),
       date: els.tDate.value,
       product: prod,
-      unitId: (els.tUnit && els.tUnit.value) || defaultUnitId(state),
+      unitId: tUnitId,
       qty,
       fromWarehouseId: from,
       toWarehouseId: to,
@@ -3415,10 +3600,10 @@
       [els.aProduct, els.aUnit],
       [els.tProduct, els.tUnit],
     ];
-    pairs.forEach(([inp, sel]) => {
-      if (!inp || !sel) return;
-      inp.addEventListener("input", () => setSelectUnitIfValid(sel, resolvedUnitIdForProductInput(state, inp.value)));
-      inp.addEventListener("change", () => setSelectUnitIfValid(sel, resolvedUnitIdForProductInput(state, inp.value)));
+    pairs.forEach(([inp, unitField]) => {
+      if (!inp || !unitField) return;
+      inp.addEventListener("input", () => applyResolvedProductUnit(inp, unitField));
+      inp.addEventListener("change", () => applyResolvedProductUnit(inp, unitField));
     });
   }
   wireMainFormProductUnits();
@@ -3500,7 +3685,7 @@
     const f = els.backupFileInput.files[0];
     if (!f) return;
     const r = new FileReader();
-    r.onload = () => {
+    r.onload = async () => {
       try {
         if (
           !confirmTypedPhrase(
@@ -3511,7 +3696,7 @@
           els.backupFileInput.value = "";
           return;
         }
-        state = importBackup(String(r.result));
+        state = await importBackup(String(r.result));
         fullRender();
         alert("导入成功");
       } catch (err) {
@@ -3530,7 +3715,7 @@
   els.sPaymentType.addEventListener("change", () => {
     const cr = els.sPaymentType.value === "credit";
     els.sCustomer.required = cr;
-    els.sPaidNow.parentElement.style.opacity = cr ? "1" : "0.6";
+    if (!cr) syncSalesPaidNowIfCash();
   });
   els.sPaymentType.dispatchEvent(new Event("change"));
 
@@ -3555,4 +3740,53 @@
 
   fullRender();
   maybeBackupReminder();
+  }
+
+  function showBootLoading(msg) {
+    let el = document.getElementById("lx-boot-loading");
+    if (!el) {
+      el = document.createElement("div");
+      el.id = "lx-boot-loading";
+      el.className =
+        "fixed inset-0 z-[10000] flex items-center justify-center bg-slate-100/90 text-slate-700 dark:bg-slate-950/90 dark:text-slate-200";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg || "正在加载数据…";
+    el.style.display = "flex";
+  }
+
+  function hideBootLoading() {
+    const el = document.getElementById("lx-boot-loading");
+    if (el) el.style.display = "none";
+  }
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushStateToIdb();
+  });
+
+  window.addEventListener("pagehide", () => {
+    flushStateToIdb();
+  });
+
+  showBootLoading("正在加载数据…");
+  loadAppState()
+    .then((s) => {
+      state = s;
+      bootApp();
+      hideBootLoading();
+    })
+    .catch((err) => {
+      console.error(err);
+      try {
+        state = migrateIfNeeded(loadRawFromLocalStorage());
+      } catch (e2) {
+        state = defaultState();
+      }
+      alert(
+        "IndexedDB 加载失败，已尝试从浏览器旧缓存（localStorage）恢复。\n\n" +
+          (err && err.message ? err.message : String(err))
+      );
+      bootApp();
+      hideBootLoading();
+    });
 })();

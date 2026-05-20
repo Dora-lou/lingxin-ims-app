@@ -179,7 +179,7 @@
           <div class="min-w-0"><label class="lx-label" for="pDate">日期</label><input type="date" id="pDate" class="lx-input" required /></div>
           <div class="min-w-0"><label class="lx-label" for="pProduct">商品名称</label><input type="text" id="pProduct" class="lx-input" list="productList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="pQty">数量</label><input type="number" id="pQty" class="lx-input" min="0.01" step="0.01" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="pUnit">单位</label><select id="pUnit"></select></div>
+          <div class="min-w-0"><label class="lx-label" for="pUnit">单位</label><input type="text" id="pUnit" class="lx-input" list="unitList" autocomplete="off" placeholder="可输入新单位" /></div>
           <div class="min-w-0"><label class="lx-label" for="pPrice">单价</label><input type="number" id="pPrice" class="lx-input" min="0" step="0.01" required /></div>
           <div class="min-w-0"><label class="lx-label" for="pSupplier">供应商</label><input type="text" id="pSupplier" class="lx-input" list="supplierList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="pWarehouse">入库仓库</label><select id="pWarehouse"></select></div>
@@ -240,8 +240,8 @@
           <div class="min-w-0"><label class="lx-label" for="sProduct">商品名称</label><input type="text" id="sProduct" class="lx-input" list="productList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="sWarehouse">出库仓库</label><select id="sWarehouse"></select></div>
           <div class="min-w-0"><label class="lx-label" for="sQty">数量</label><input type="number" id="sQty" class="lx-input" min="0.01" step="0.01" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="sUnit">单位</label><select id="sUnit"></select></div>
-          <div class="min-w-0"><label class="lx-label" for="sPrice">售价</label><input type="number" id="sPrice" class="lx-input" min="0" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="sUnit">单位</label><input type="text" id="sUnit" class="lx-input" list="unitList" autocomplete="off" placeholder="可输入新单位" /></div>
+          <div class="min-w-0"><label class="lx-label" for="sPrice">单价</label><input type="number" id="sPrice" class="lx-input" min="0" step="0.01" required /></div>
           <div class="min-w-0"><label class="lx-label" for="sPaymentType">付款方式</label><select id="sPaymentType"><option value="cash">现款</option><option value="credit">赊账</option></select></div>
           <div class="min-w-0"><label class="lx-label" for="sCustomer">客户(赊账必填)</label><input type="text" id="sCustomer" class="lx-input" list="customerList" autocomplete="off" placeholder="赊账客户名" /></div>
           <div class="min-w-0"><label class="lx-label" for="sPaidNow">本次收款</label><input type="number" id="sPaidNow" class="lx-input" min="0" step="0.01" value="0" /></div>
@@ -281,7 +281,7 @@
       </div>
       <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table">
-            <thead><tr><th class="w-10 pr-0"><span class="sr-only">多选</span></th><th>日期</th><th>仓库</th><th>商品</th><th>付款</th><th>客户</th><th>数量</th><th>售价</th><th>成本</th><th>小计</th><th>已收</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
+            <thead><tr><th class="w-10 pr-0"><span class="sr-only">多选</span></th><th>日期</th><th>仓库</th><th>商品</th><th>付款</th><th>客户</th><th>数量</th><th>单价</th><th>成本</th><th>小计</th><th>已收</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
             <tbody id="salesTbody"></tbody>
           </table>
         </div>
@@ -440,7 +440,7 @@
           <div class="min-w-0"><label class="lx-label" for="aWarehouse">仓库</label><select id="aWarehouse"></select></div>
           <div class="min-w-0"><label class="lx-label" for="aProduct">商品名称</label><input type="text" id="aProduct" class="lx-input" list="productList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="aQty">调整数量(可正可负)</label><input type="number" id="aQty" class="lx-input" step="0.01" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="aUnit">单位</label><select id="aUnit"></select></div>
+          <div class="min-w-0"><label class="lx-label" for="aUnit">单位</label><input type="text" id="aUnit" class="lx-input" list="unitList" autocomplete="off" placeholder="可输入新单位" /></div>
           <div class="lx-span-2 min-w-0"><label class="lx-label" for="aReason">调整原因</label><input type="text" id="aReason" class="lx-input" required /></div>
           <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增调整</button></div>
         </form>
@@ -451,7 +451,7 @@
           <div class="min-w-0"><label class="lx-label" for="tDate">日期</label><input type="date" id="tDate" class="lx-input" required /></div>
           <div class="min-w-0"><label class="lx-label" for="tProduct">商品</label><input type="text" id="tProduct" class="lx-input" list="productList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="tQty">数量</label><input type="number" id="tQty" class="lx-input" min="0.01" step="0.01" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="tUnit">单位</label><select id="tUnit"></select></div>
+          <div class="min-w-0"><label class="lx-label" for="tUnit">单位</label><input type="text" id="tUnit" class="lx-input" list="unitList" autocomplete="off" placeholder="可输入新单位" /></div>
           <div class="min-w-0"><label class="lx-label" for="tFrom">从仓库</label><select id="tFrom"></select></div>
           <div class="min-w-0"><label class="lx-label" for="tTo">到仓库</label><select id="tTo"></select></div>
           <div class="lx-span-2 min-w-0"><label class="lx-label" for="tNote">备注</label><input type="text" id="tNote" class="lx-input" /></div>
@@ -719,7 +719,7 @@
         <div class="border-b border-slate-100 px-6 py-4 dark:border-slate-800 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div class="min-w-0">
             <h3 class="lx-section-title !mb-0">商品与单位</h3>
-            <p class="lx-muted mt-2 text-[13px] leading-relaxed">一次填写<strong>商品</strong>和<strong>单位</strong>即可添加；填<strong>新单位名称</strong>时会自动加入单位列表（与已有名称相同则复用）。下面列表中可修改商品名称，或从下拉框更换单位。进货/销售里输入已建档商品名时会自动带出单位。</p>
+            <p class="lx-muted mt-2 text-[13px] leading-relaxed">一次填写<strong>商品</strong>和<strong>单位</strong>即可添加；填<strong>新单位名称</strong>时会自动加入单位列表（与已有名称相同则复用）。下面列表中可修改商品名称，或从下拉框更换单位。进货/销售/调拨/调整里输入商品名时，若已在档案中会<strong>自动带出单位</strong>；未建档的可<strong>自行填写单位</strong>，保存后会写入本页商品档案，下次同名商品自动匹配。</p>
           </div>
           <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="productsUnits">一键清空</button>
         </div>
@@ -877,13 +877,14 @@
     </section>
 
     <datalist id="productList"></datalist>
+    <datalist id="unitList"></datalist>
     <datalist id="customerList"></datalist>
     <datalist id="supplierList"></datalist>
     <input id="backupFileInput" type="file" accept=".json,application/json" class="hidden" />
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260627"></script>
+  <script src="lingxin-ims-app.js?v=20260630"></script>
   <script>
     (function () {
       function isStandalone() {
