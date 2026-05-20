@@ -181,6 +181,7 @@
           <div class="min-w-0"><label class="lx-label" for="pQty">数量</label><input type="number" id="pQty" class="lx-input" min="0.01" step="0.01" required /></div>
           <div class="min-w-0"><label class="lx-label" for="pUnit">单位</label><input type="text" id="pUnit" class="lx-input" list="unitList" autocomplete="off" placeholder="可输入新单位" /></div>
           <div class="min-w-0"><label class="lx-label" for="pPrice">单价</label><input type="number" id="pPrice" class="lx-input" min="0" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="pExtraFee">额外费用</label><input type="number" id="pExtraFee" class="lx-input" min="0" step="0.01" placeholder="选填，如运费" /></div>
           <div class="min-w-0"><label class="lx-label" for="pSupplier">供应商</label><input type="text" id="pSupplier" class="lx-input" list="supplierList" autocomplete="off" required /></div>
           <div class="min-w-0"><label class="lx-label" for="pWarehouse">入库仓库</label><select id="pWarehouse"></select></div>
           <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">新增进货</button></div>
@@ -188,7 +189,10 @@
       </div>
       <div class="lx-card">
         <form class="lx-form-grid" onsubmit="return false;">
-          <div class="lx-span-2 min-w-0"><label class="lx-label" for="purchaseSearch">搜索商品</label><input id="purchaseSearch" class="lx-input" placeholder="关键字" /></div>
+          <div class="min-w-0"><label class="lx-label" for="purchaseDateStart">开始日期</label><input type="date" id="purchaseDateStart" class="lx-input" /></div>
+          <div class="min-w-0"><label class="lx-label" for="purchaseDateEnd">结束日期</label><input type="date" id="purchaseDateEnd" class="lx-input" /></div>
+          <div class="min-w-0 flex items-end"><button type="button" id="purchaseDateClear" class="lx-btn-outline w-full sm:w-auto text-sm">清空日期</button></div>
+          <div class="lx-span-2 min-w-0 sm:col-span-2"><label class="lx-label" for="purchaseSearch">搜索商品</label><input id="purchaseSearch" class="lx-input" placeholder="关键字" /></div>
         </form>
       </div>
       <details class="lx-card lx-record-block !p-0 overflow-hidden" open>
@@ -218,7 +222,7 @@
       </div>
       <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table">
-            <thead><tr><th class="w-10 pr-0"><span class="sr-only">多选</span></th><th>日期</th><th>仓库</th><th>供应商</th><th>商品</th><th>数量</th><th>单价</th><th>小计</th><th>操作</th></tr></thead>
+            <thead><tr><th class="w-10 pr-0"><span class="sr-only">多选</span></th><th>日期</th><th>仓库</th><th>供应商</th><th>商品</th><th>数量</th><th>单价</th><th>额外费用</th><th>小计</th><th>操作</th></tr></thead>
             <tbody id="purchaseTbody"></tbody>
           </table>
         </div>
@@ -242,6 +246,7 @@
           <div class="min-w-0"><label class="lx-label" for="sQty">数量</label><input type="number" id="sQty" class="lx-input" min="0.01" step="0.01" required /></div>
           <div class="min-w-0"><label class="lx-label" for="sUnit">单位</label><input type="text" id="sUnit" class="lx-input" list="unitList" autocomplete="off" placeholder="可输入新单位" /></div>
           <div class="min-w-0"><label class="lx-label" for="sPrice">单价</label><input type="number" id="sPrice" class="lx-input" min="0" step="0.01" required /></div>
+          <div class="min-w-0"><label class="lx-label" for="sExtraFee">额外费用</label><input type="number" id="sExtraFee" class="lx-input" min="0" step="0.01" placeholder="选填" /></div>
           <div class="min-w-0"><label class="lx-label" for="sPaymentType">付款方式</label><select id="sPaymentType"><option value="cash">现款</option><option value="credit">赊账</option></select></div>
           <div class="min-w-0"><label class="lx-label" for="sCustomer">客户(赊账必填)</label><input type="text" id="sCustomer" class="lx-input" list="customerList" autocomplete="off" placeholder="赊账客户名" /></div>
           <div class="min-w-0"><label class="lx-label" for="sPaidNow">本次收款</label><input type="number" id="sPaidNow" class="lx-input" min="0" step="0.01" value="0" /></div>
@@ -251,7 +256,10 @@
       </div>
       <div class="lx-card">
         <form class="lx-form-grid" onsubmit="return false;">
-          <div class="lx-span-2 min-w-0"><label class="lx-label" for="salesSearch">搜索商品</label><input id="salesSearch" class="lx-input" placeholder="关键字" /></div>
+          <div class="min-w-0"><label class="lx-label" for="salesDateStart">开始日期</label><input type="date" id="salesDateStart" class="lx-input" /></div>
+          <div class="min-w-0"><label class="lx-label" for="salesDateEnd">结束日期</label><input type="date" id="salesDateEnd" class="lx-input" /></div>
+          <div class="min-w-0 flex items-end"><button type="button" id="salesDateClear" class="lx-btn-outline w-full sm:w-auto text-sm">清空日期</button></div>
+          <div class="lx-span-2 min-w-0 sm:col-span-2"><label class="lx-label" for="salesSearch">搜索商品</label><input id="salesSearch" class="lx-input" placeholder="关键字" /></div>
         </form>
       </div>
       <details class="lx-card lx-record-block !p-0 overflow-hidden" open>
@@ -281,7 +289,7 @@
       </div>
       <div class="lx-table-wrap border-0 shadow-none">
           <table class="lx-table">
-            <thead><tr><th class="w-10 pr-0"><span class="sr-only">多选</span></th><th>日期</th><th>仓库</th><th>商品</th><th>付款</th><th>客户</th><th>数量</th><th>单价</th><th>成本</th><th>小计</th><th>已收</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
+            <thead><tr><th class="w-10 pr-0"><span class="sr-only">多选</span></th><th>日期</th><th>仓库</th><th>商品</th><th>付款</th><th>客户</th><th>数量</th><th>单价</th><th>额外费用</th><th>成本</th><th>小计</th><th>已收合计</th><th>欠款</th><th>买方</th><th>操作</th></tr></thead>
             <tbody id="salesTbody"></tbody>
           </table>
         </div>
@@ -293,32 +301,27 @@
       <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <h2 class="lx-page-title">应收账款</h2>
         <div class="flex flex-wrap items-center gap-2">
-          <button type="button" class="lx-btn-outline shrink-0 text-sm text-red-600 border-red-200 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950/40" data-clear="receipts">一键清空收款</button>
           <button type="button" class="lx-btn-outline shrink-0" data-export-module="receivables">下载本模块（Excel）</button>
         </div>
       </div>
       <div class="lx-card">
-        <form class="lx-form-grid" onsubmit="return false;">
-          <div class="lx-span-2 min-w-0">
-            <label class="lx-label" for="arSearchFilter">快速查找</label>
-            <input type="text" id="arSearchFilter" class="lx-input" placeholder="客户名、商品名；收款记录还可按备注筛选" autocomplete="off" />
-          </div>
-        </form>
-      </div>
-      <div class="lx-card">
-        <h3 class="lx-section-title">登记收款（按客户自动核销最早赊欠）</h3>
-        <form id="receiptForm" class="lx-form-grid">
-          <div class="min-w-0"><label class="lx-label" for="rcDate">日期</label><input type="date" id="rcDate" class="lx-input" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="rcCustomer">客户</label><input type="text" id="rcCustomer" class="lx-input" list="customerList" autocomplete="off" required /></div>
-          <div class="min-w-0"><label class="lx-label" for="rcAmount">收款金额</label><input type="number" id="rcAmount" class="lx-input" min="0.01" step="0.01" required /></div>
-          <div class="lx-span-2 min-w-0"><label class="lx-label" for="rcNote">备注</label><input type="text" id="rcNote" class="lx-input" placeholder="可选" /></div>
-          <div class="min-w-0 flex items-end"><button class="lx-btn-primary w-full sm:w-auto" type="submit">保存收款</button></div>
+        <h3 class="lx-section-title">筛选</h3>
+        <p class="lx-muted mb-4 text-[13px]">筛选下方「客户欠款汇总」「已结清赊销」；不填表示不限制</p>
+        <form id="arFilterForm" class="lx-form-grid" onsubmit="return false;">
+          <div class="min-w-0"><label class="lx-label" for="arDateStart">开始日期</label><input type="date" id="arDateStart" class="lx-input" /></div>
+          <div class="min-w-0"><label class="lx-label" for="arDateEnd">结束日期</label><input type="date" id="arDateEnd" class="lx-input" /></div>
+          <div class="min-w-0"><label class="lx-label" for="arCustomerFilter">客户</label><input type="text" id="arCustomerFilter" class="lx-input" list="customerList" autocomplete="off" placeholder="客户名，可模糊" /></div>
+          <div class="min-w-0"><label class="lx-label" for="arProductFilter">商品</label><input type="text" id="arProductFilter" class="lx-input" placeholder="商品关键字" autocomplete="off" /></div>
+          <div class="min-w-0 flex items-end"><button type="button" id="arFilterClear" class="lx-btn-outline w-full sm:w-auto text-sm">清空筛选</button></div>
         </form>
       </div>
       <div class="lx-card !p-0 overflow-hidden">
         <details class="lx-record-block group" open>
           <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-            <h3 class="lx-section-title !mb-0">客户欠款汇总</h3>
+            <div class="min-w-0">
+              <h3 class="lx-section-title !mb-0">客户欠款汇总</h3>
+              <p class="lx-muted mt-1 text-xs">按上方筛选；「当场已收」可直接改；勾选「本条结清」只结这一单；「一键结清」会结清该客户名下全部未结清欠款</p>
+            </div>
             <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
           </summary>
           <div>
@@ -337,7 +340,7 @@
               </div>
             </div>
             <div class="lx-table-wrap border-0 shadow-none">
-              <table class="lx-table"><thead><tr><th>客户</th><th>应收余额</th></tr></thead><tbody id="arSummaryTbody"></tbody></table>
+              <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>已付合计</th><th>剩余欠款</th><th>本条结清</th></tr></thead><tbody id="arSummaryTbody"></tbody></table>
             </div>
           </div>
         </details>
@@ -345,34 +348,7 @@
       <div class="lx-card !p-0 overflow-hidden">
         <details class="lx-record-block group" open>
           <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-            <h3 class="lx-section-title !mb-0">赊销明细（未结清）</h3>
-            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
-          </summary>
-          <div>
-            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
-              <span id="arCreditPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
-              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
-                <select id="arCreditPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="arCredit">
-                  <option value="10">10</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
-              </label>
-              <div class="flex flex-wrap gap-2 sm:ml-auto">
-                <button type="button" id="arCreditPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="arCredit" data-list-pager-dir="prev">上一页</button>
-                <button type="button" id="arCreditPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="arCredit" data-list-pager-dir="next">下一页</button>
-              </div>
-            </div>
-            <div class="lx-table-wrap border-0 shadow-none">
-              <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>剩余欠款</th><th>已收款</th></tr></thead><tbody id="arCreditTbody"></tbody></table>
-            </div>
-          </div>
-        </details>
-      </div>
-      <div class="lx-card !p-0 overflow-hidden">
-        <details class="lx-record-block group" open>
-          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-            <h3 class="lx-section-title !mb-0">已收款（已结清）</h3>
+            <h3 class="lx-section-title !mb-0">已结清赊销</h3>
             <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
           </summary>
           <div>
@@ -392,33 +368,6 @@
             </div>
             <div class="lx-table-wrap border-0 shadow-none">
               <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>商品</th><th>小计</th><th>当场已收</th><th>收款核销</th><th>手动结清</th><th>已收合计</th></tr></thead><tbody id="arPaidTbody"></tbody></table>
-            </div>
-          </div>
-        </details>
-      </div>
-      <div class="lx-card !p-0 overflow-hidden">
-        <details class="lx-record-block group" open>
-          <summary class="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-slate-100 px-6 py-4 dark:border-slate-800">
-            <h3 class="lx-section-title !mb-0">收款记录</h3>
-            <span class="text-xs text-slate-400 shrink-0">展开 / 收起</span>
-          </summary>
-          <div>
-            <div class="flex flex-col gap-2 border-b border-slate-100 bg-slate-50/60 px-4 py-2.5 dark:border-slate-800 dark:bg-slate-900/50 sm:flex-row sm:flex-wrap sm:items-center">
-              <span id="receiptPagerInfo" class="text-sm text-slate-500 dark:text-slate-400"></span>
-              <label class="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">每页
-                <select id="receiptPagerSize" class="lx-input lx-list-page-size h-9 w-[4.75rem] shrink-0 py-0 text-sm" data-list-pager-key="receipts">
-                  <option value="10">10</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
-              </label>
-              <div class="flex flex-wrap gap-2 sm:ml-auto">
-                <button type="button" id="receiptPagerPrev" class="lx-btn-secondary text-sm" data-list-pager-key="receipts" data-list-pager-dir="prev">上一页</button>
-                <button type="button" id="receiptPagerNext" class="lx-btn-secondary text-sm" data-list-pager-key="receipts" data-list-pager-dir="next">下一页</button>
-              </div>
-            </div>
-            <div class="lx-table-wrap border-0 shadow-none">
-              <table class="lx-table"><thead><tr><th>日期</th><th>客户</th><th>金额</th><th>备注</th><th>操作</th></tr></thead><tbody id="receiptTbody"></tbody></table>
             </div>
           </div>
         </details>
@@ -884,7 +833,7 @@
   </div>
   <div id="modalOverlay" class="fixed inset-0 z-[9999] hidden items-end justify-center bg-slate-900/55 p-3 backdrop-blur-[2px]" aria-hidden="true"></div>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="lingxin-ims-app.js?v=20260630"></script>
+  <script src="lingxin-ims-app.js?v=20260638"></script>
   <script>
     (function () {
       function isStandalone() {

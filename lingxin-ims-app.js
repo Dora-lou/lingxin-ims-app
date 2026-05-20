@@ -41,6 +41,26 @@
     return Number.isFinite(x) ? x : 0;
   }
 
+  function parseOptionalFee(raw) {
+    const t = String(raw ?? "").trim();
+    if (!t) return 0;
+    const x = Number(t);
+    return Number.isFinite(x) && x >= 0 ? x : 0;
+  }
+
+  function purchaseLineSubtotal(p) {
+    return +(num(p.qty) * num(p.price) + num(p.extraFee)).toFixed(2);
+  }
+
+  function saleLineSubtotal(s) {
+    return +(num(s.qty) * num(s.price) + num(s.extraFee)).toFixed(2);
+  }
+
+  function formatExtraFeeCell(fee) {
+    const x = num(fee);
+    return x > 0.0001 ? money(x) : "—";
+  }
+
   function todayISO() {
     const d = new Date();
     const p = (n) => String(n).padStart(2, "0");
@@ -216,6 +236,7 @@
       categoryId: p.categoryId || p.category || defCat,
       qty: num(p.qty),
       price: num(p.price),
+      extraFee: num(p.extraFee),
     }));
     s.sales = s.sales.map((x) => ({
       ...x,
@@ -226,6 +247,7 @@
       paidAtSale: num(x.paidAtSale),
       qty: num(x.qty),
       price: num(x.price),
+      extraFee: num(x.extraFee),
       arReceiptAllocated: num(x.arReceiptAllocated),
       arManualPaid: num(x.arManualPaid),
     }));
@@ -501,7 +523,7 @@
         const q = Math.max(0, num(p.qty));
         const price = Math.max(0, num(p.price));
         c.qty += q;
-        c.totalCost += q * price;
+        c.totalCost += q * price + num(p.extraFee);
       } else if (ev.kind === "transfer") {
         const t = ev.row;
         const q = Math.max(0, num(t.qty));
@@ -551,7 +573,7 @@
   function recomputeSaleCosts(state) {
     const { saleCogs } = buildLedger(state);
     state.sales.forEach((s) => {
-      s.amount = +(num(s.qty) * num(s.price)).toFixed(2);
+      s.amount = saleLineSubtotal(s);
       s.costAtSale = +(saleCogs.get(s.id) || 0).toFixed(2);
     });
   }
@@ -571,9 +593,10 @@
       let left = Math.max(0, num(r.amount));
       const cust = String(r.customerName || "").trim();
       if (!cust) continue;
+      const rk = arCustomerNormKey(cust);
       for (const s of arSales) {
         if (left <= 0) break;
-        if (String(s.customerName || "").trim() !== cust) continue;
+        if (saleCustMatchKey(s) !== rk) continue;
         const creditTotal = Math.max(0, num(s.amount) - num(s.paidAtSale));
         const open = Math.max(0, creditTotal - num(s.arReceiptAllocated));
         const x = Math.min(open, left);
@@ -857,6 +880,123 @@
     return Math.max(0, total - applied);
   }
 
+  function saleCustLabel(s) {
+    return String(s.customerName || "").trim() || "（未填写客户）";
+  }
+
+  /** 客户名比较用（避免不可见字符 / Unicode 形式不一致导致「一键结清」匹配不到） */
+  function arCustomerNormKey(label) {
+    let t = String(label || "").trim();
+    try {
+      if (typeof t.normalize === "function") t = t.normalize("NFC");
+    } catch {
+      /* ignore */
+    }
+    return t;
+  }
+
+  function saleCustMatchKey(s) {
+    return arCustomerNormKey(saleCustLabel(s));
+  }
+
+  function salePaidTotal(s) {
+    return Math.min(
+      num(s.amount),
+      Math.max(0, num(s.paidAtSale)) + Math.max(0, num(s.arReceiptAllocated)) + Math.max(0, num(s.arManualPaid))
+    );
+  }
+
+  function settleSaleAr(s) {
+    const rem = creditRemaining(s);
+    if (rem > 0.001) s.arManualPaid = Math.max(0, num(s.arManualPaid)) + rem;
+  }
+
+  /** 按客户键结清该客户名下全部未结清欠款（customerKey 为 encodeURIComponent(arCustomerNormKey(saleCustLabel(s)))） */
+  function settleCustomerAr(encodedCustomerKey) {
+    let decoded = "";
+    try {
+      decoded = decodeURIComponent(String(encodedCustomerKey || ""));
+    } catch {
+      decoded = String(encodedCustomerKey || "");
+    }
+    const key = arCustomerNormKey(decoded);
+    syncAllComputed(state);
+    let n = 0;
+    let total = 0;
+    let displayName = decoded.trim() || "该客户";
+    state.sales.forEach((s) => {
+      if (saleCustMatchKey(s) !== key) return;
+      const rem = creditRemaining(s);
+      if (rem <= 0.001) return;
+      if (n === 0) displayName = saleCustLabel(s);
+      n++;
+      total += rem;
+    });
+    if (!n) return alert("该客户暂无未结清欠款");
+    if (
+      !confirm(
+        "确定将客户「" +
+          displayName +
+          "」下 " +
+          n +
+          " 笔未结清欠款（合计 " +
+          money(total) +
+          "）全部标记为已收？\n\n仅在账面结清（写入「手动结清」），不会生成单独收款单据；结清后可在「已结清赊销」查看。"
+      )
+    )
+      return;
+    state.sales.forEach((s) => {
+      if (saleCustMatchKey(s) !== key) return;
+      settleSaleAr(s);
+    });
+    saveState(state);
+    fullRender();
+  }
+
+  function bindArPaidCheckboxes(root) {
+    if (!root) return;
+    root.querySelectorAll("[data-ar-paid]").forEach((cb) => {
+      cb.addEventListener("change", () => {
+        const id = cb.getAttribute("data-ar-paid");
+        const s = state.sales.find((x) => String(x.id) === String(id));
+        if (!s) return;
+        if (cb.checked) {
+          syncAllComputed(state);
+          const rem = creditRemaining(s);
+          if (rem > 0.001) {
+            settleSaleAr(s);
+            saveState(state);
+            fullRender();
+          } else {
+            cb.checked = false;
+          }
+        }
+      });
+    });
+  }
+
+  function arUnpaidRowHtml(s) {
+    const rem = creditRemaining(s);
+    const cust = saleCustLabel(s);
+    const paidTotal = salePaidTotal(s);
+    const custKeyEnc = encodeURIComponent(arCustomerNormKey(saleCustLabel(s)));
+    return `
+        <td data-label="日期">${s.date}</td>
+        <td data-label="客户">
+          <div class="flex flex-col gap-1 sm:flex-row sm:flex-wrap sm:items-center">
+            <span>${escapeHtml(cust)}</span>
+            <button type="button" class="lx-btn-outline shrink-0 px-2 py-0.5 text-xs" data-ar-settle-customer-key="${escapeHtml(custKeyEnc)}">一键结清</button>
+          </div>
+        </td>
+        <td data-label="商品">${escapeHtml(s.product || "")}</td>
+        <td data-label="小计" class="lx-money">${money(s.amount)}</td>
+        <td data-label="当场已收"><input type="number" class="lx-input max-w-[7.5rem] py-1 text-sm" data-ar-paid-at-sale="${escapeHtml(s.id)}" min="0" step="0.01" value="${num(s.paidAtSale)}" title="可修改当场已收金额" /></td>
+        <td data-label="收款核销" class="lx-money">${money(s.arReceiptAllocated)}</td>
+        <td data-label="已付合计" class="lx-money">${money(paidTotal)}</td>
+        <td data-label="剩余欠款" class="lx-money">${money(rem)}</td>
+        <td data-label="本条结清"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600" data-ar-paid="${escapeHtml(s.id)}" title="勾选表示本条已收齐" /></td>`;
+  }
+
   function arCustomerBalances(state) {
     const map = new Map();
     state.sales.forEach((s) => {
@@ -1112,7 +1252,8 @@
           商品: p.product || "",
           数量: formatQtyCell(p.qty, state, p.unitId),
           单价: num(p.price),
-          小计: +(num(p.qty) * num(p.price)).toFixed(2),
+          额外费用: num(p.extraFee),
+          小计: purchaseLineSubtotal(p),
           记录ID: p.id,
         }))
     );
@@ -1131,6 +1272,7 @@
             客户: s.customerName || "",
             数量: formatQtyCell(s.qty, state, s.unitId),
             单价: num(s.price),
+            额外费用: num(s.extraFee),
             销售成本: num(s.costAtSale),
             小计: num(s.amount),
             当场已收: Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))),
@@ -1142,18 +1284,20 @@
           };
         })
     );
-    appendSheet(
-      "收款",
-      [...state.receipts]
-        .sort((a, b) => cmpDate(a.date, b.date))
-        .map((r) => ({
-          日期: r.date,
-          客户: r.customerName || "",
-          金额: num(r.amount),
-          备注: r.note || "",
-          记录ID: r.id,
-        }))
-    );
+    if (state.receipts && state.receipts.length) {
+      appendSheet(
+        "收款(历史)",
+        [...state.receipts]
+          .sort((a, b) => cmpDate(a.date, b.date))
+          .map((r) => ({
+            日期: r.date,
+            客户: r.customerName || "",
+            金额: num(r.amount),
+            备注: r.note || "",
+            记录ID: r.id,
+          }))
+      );
+    }
     appendSheet(
       "调拨",
       [...state.transfers]
@@ -1511,14 +1655,6 @@
     fullRender();
   }
 
-  function clearAllReceipts() {
-    if (!state.receipts.length) return alert("暂无收款记录");
-    if (!confirmTypedPhrase("将永久删除全部收款登记，赊销核销将重算，不可恢复。", "确认清空全部收款")) return;
-    state.receipts = [];
-    saveState(state);
-    fullRender();
-  }
-
   function clearAllTransfers() {
     if (!state.transfers.length) return alert("暂无调拨记录");
     if (!confirmTypedPhrase("将永久删除全部调拨单，不可恢复。", "确认清空全部调拨")) return;
@@ -1646,18 +1782,60 @@
     if (unitId) setUnitFieldIfValid(unitFieldEl, unitId);
   }
 
-  function filteredPurchaseRows(st, qLower) {
+  function listDateRange(startEl, endEl) {
+    return {
+      start: (startEl && startEl.value) || "",
+      end: (endEl && endEl.value) || "",
+    };
+  }
+
+  function readArFilters() {
+    return {
+      date: listDateRange(els.arDateStart, els.arDateEnd),
+      customer: (els.arCustomerFilter && els.arCustomerFilter.value.trim()) || "",
+      product: (els.arProductFilter && els.arProductFilter.value.trim().toLowerCase()) || "",
+    };
+  }
+
+  function saleMatchesArFilters(s, filters) {
+    if (!inRange(s.date, filters.date.start, filters.date.end)) return false;
+    if (filters.customer) {
+      const c = filters.customer.toLowerCase();
+      if (!saleCustLabel(s).toLowerCase().includes(c)) return false;
+    }
+    if (filters.product && !String(s.product || "").toLowerCase().includes(filters.product)) return false;
+    return true;
+  }
+
+  function applyPaidAtSaleEdit(saleId, raw) {
+    const s = state.sales.find((x) => x.id === saleId);
+    if (!s) return;
+    let v = Math.max(0, num(raw));
+    v = Math.min(v, num(s.amount));
+    if (Math.abs(v - num(s.paidAtSale)) < 0.0001) return;
+    s.paidAtSale = v;
+    saveState(state);
+    refreshReceivables();
+  }
+
+  function filteredPurchaseRows(st, qLower, start, end) {
+    const ds = start || "";
+    const de = end || "";
     return st.purchases
       .filter((p) => {
+        if (!inRange(p.date, ds, de)) return false;
         if (qLower && !String(p.product).toLowerCase().includes(qLower)) return false;
         return true;
       })
       .sort((a, b) => -cmpDate(a.date, b.date));
   }
 
-  function filteredSalesRows(st, qLower) {
+  function filteredSalesRows(st, qLower, start, end) {
+    const ds = start || "";
+    const de = end || "";
     return st.sales
       .filter((s) => {
+        if (!inRange(s.date, ds, de)) return false;
         if (qLower && !String(s.product).toLowerCase().includes(qLower)) return false;
         return true;
       })
@@ -1682,9 +1860,7 @@
     purchases: { info: "purchasePageInfo", size: "purchasePageSize", prev: "purchasePagePrev", next: "purchasePageNext" },
     sales: { info: "salesPageInfo", size: "salesPageSize", prev: "salesPagePrev", next: "salesPageNext" },
     arSummary: { info: "arSummaryPagerInfo", size: "arSummaryPagerSize", prev: "arSummaryPagerPrev", next: "arSummaryPagerNext" },
-    arCredit: { info: "arCreditPagerInfo", size: "arCreditPagerSize", prev: "arCreditPagerPrev", next: "arCreditPagerNext" },
     arPaid: { info: "arPaidPagerInfo", size: "arPaidPagerSize", prev: "arPaidPagerPrev", next: "arPaidPagerNext" },
-    receipts: { info: "receiptPagerInfo", size: "receiptPagerSize", prev: "receiptPagerPrev", next: "receiptPagerNext" },
     inventory: { info: "inventoryPagerInfo", size: "inventoryPagerSize", prev: "inventoryPagerPrev", next: "inventoryPagerNext" },
     transfers: { info: "transferPagerInfo", size: "transferPagerSize", prev: "transferPagerPrev", next: "transferPagerNext" },
     adjustments: { info: "adjustPagerInfo", size: "adjustPagerSize", prev: "adjustPagerPrev", next: "adjustPagerNext" },
@@ -1749,16 +1925,6 @@
     if (next) next.disabled = meta.page >= meta.pages || meta.total === 0;
   }
 
-  function rerenderForListPagerKey(key) {
-    if (key === "purchases") renderPurchases();
-    else if (key === "sales") renderSales();
-    else if (key === "arSummary" || key === "arCredit" || key === "arPaid" || key === "receipts") renderReceivables();
-    else if (key === "inventory" || key === "transfers" || key === "adjustments" || key === "warehouses") renderInventory();
-    else if (key === "productDefs" || key === "customerDefs" || key === "supplierDefs") renderInventory();
-    else if (key === "fixedCosts") renderInventory();
-    else if (key === "profitGroup" || key === "productStats" || key === "bestseller") renderAnalytics();
-  }
-
   function resetAnalyticsListPagers() {
     ["profitGroup", "productStats", "bestseller"].forEach((k) => {
       ensureListPager(k).page = 1;
@@ -1810,7 +1976,8 @@
               数量数值: num(p.qty),
               数量显示: formatQtyCell(p.qty, state, p.unitId),
               单价: num(p.price),
-              小计: +(num(p.qty) * num(p.price)).toFixed(2),
+              额外费用: num(p.extraFee),
+              小计: purchaseLineSubtotal(p),
               记录ID: p.id,
             })),
         },
@@ -1837,6 +2004,7 @@
                 付款方式: pay,
                 客户: s.customerName || "",
                 单价: num(s.price),
+                额外费用: num(s.extraFee),
                 销售成本: num(s.costAtSale),
                 小计: num(s.amount),
                 当场已收: Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))),
@@ -1854,23 +2022,26 @@
     }
     if (mod === "receivables") {
       const balMap = arCustomerBalances(state);
-      const summaryRows = Array.from(balMap.entries()).map(([客户, 应收余额]) => ({ 客户, 应收余额 }));
-      const creditRows = [];
+      const summaryRows = [];
       state.sales.forEach((s) => {
         if (creditRemaining(s) <= 0.001) return;
         const rem = creditRemaining(s);
-        creditRows.push({
+        summaryRows.push({
           日期: s.date,
-          客户: String(s.customerName || "").trim() || "（未填写客户）",
+          客户: saleCustLabel(s),
           商品: s.product || "",
           小计: num(s.amount),
           当场已收: num(s.paidAtSale),
           收款核销: num(s.arReceiptAllocated),
+          已付合计: salePaidTotal(s),
           剩余欠款: rem,
           记录ID: s.id,
         });
       });
-      creditRows.sort((a, b) => cmpDate(a.date, b.date));
+      summaryRows.sort(
+        (a, b) => String(a.客户).localeCompare(String(b.客户), "zh-CN") || cmpDate(a.日期, b.日期)
+      );
+      const customerTotalRows = Array.from(balMap.entries()).map(([客户, 应收余额]) => ({ 客户, 应收余额 }));
       const paidRows = [];
       state.sales.forEach((s) => {
         if (
@@ -1898,20 +2069,10 @@
         });
       });
       paidRows.sort((a, b) => -cmpDate(a.date, b.date));
-      const receiptRows = [...state.receipts]
-        .sort((a, b) => -cmpDate(a.date, b.date))
-        .map((r) => ({
-          日期: r.date,
-          客户: r.customerName || "",
-          金额: num(r.amount),
-          备注: r.note || "",
-          记录ID: r.id,
-        }));
       bookAppendJsonSheets(XLSX, wb, [
-        { name: "客户欠款汇总", rows: summaryRows },
-        { name: "赊销未结清", rows: creditRows },
+        { name: "客户欠款明细", rows: summaryRows },
+        { name: "客户合计欠款", rows: customerTotalRows },
         { name: "已结清赊销", rows: paidRows },
-        { name: "收款记录", rows: receiptRows },
       ]);
       writeWorkbookToFile(wb, nameBase + "_应收账款");
       return;
@@ -2020,7 +2181,7 @@
       fp.forEach((p) => {
         const k = keyFor(p.date);
         const o = map.get(k) || { revenue: 0, cogs: 0, expense: 0 };
-        o.expense = (o.expense || 0) + num(p.qty) * num(p.price);
+        o.expense = (o.expense || 0) + purchaseLineSubtotal(p);
         map.set(k, o);
       });
       const fixedByKey = fixedCostByPeriodKey(state, start, end, groupMode, fs, fp);
@@ -2159,11 +2320,12 @@
 
   /** -------- DOM App -------- */
   let state = defaultState();
+  let els = null;
+  let refreshReceivables = function () {};
+  let rerenderForListPagerKey = function () {};
 
   function bootApp() {
-    saveState(state);
-
-  const els = {
+  els = {
     themeBtn: document.getElementById("themeBtn"),
     backupExportBtn: document.getElementById("backupExportBtn"),
     backupImportBtn: document.getElementById("backupImportBtn"),
@@ -2182,8 +2344,12 @@
     pQty: document.getElementById("pQty"),
     pUnit: document.getElementById("pUnit"),
     pPrice: document.getElementById("pPrice"),
+    pExtraFee: document.getElementById("pExtraFee"),
     purchaseForm: document.getElementById("purchaseForm"),
     purchaseSearch: document.getElementById("purchaseSearch"),
+    purchaseDateStart: document.getElementById("purchaseDateStart"),
+    purchaseDateEnd: document.getElementById("purchaseDateEnd"),
+    purchaseDateClear: document.getElementById("purchaseDateClear"),
     purchaseTbody: document.getElementById("purchaseTbody"),
     sDate: document.getElementById("sDate"),
     sProduct: document.getElementById("sProduct"),
@@ -2191,23 +2357,24 @@
     sQty: document.getElementById("sQty"),
     sUnit: document.getElementById("sUnit"),
     sPrice: document.getElementById("sPrice"),
+    sExtraFee: document.getElementById("sExtraFee"),
     sPaymentType: document.getElementById("sPaymentType"),
     sCustomer: document.getElementById("sCustomer"),
     sPaidNow: document.getElementById("sPaidNow"),
     sBuyer: document.getElementById("sBuyer"),
     salesForm: document.getElementById("salesForm"),
     salesSearch: document.getElementById("salesSearch"),
+    salesDateStart: document.getElementById("salesDateStart"),
+    salesDateEnd: document.getElementById("salesDateEnd"),
+    salesDateClear: document.getElementById("salesDateClear"),
     salesTbody: document.getElementById("salesTbody"),
-    rcDate: document.getElementById("rcDate"),
-    rcCustomer: document.getElementById("rcCustomer"),
-    rcAmount: document.getElementById("rcAmount"),
-    rcNote: document.getElementById("rcNote"),
-    receiptForm: document.getElementById("receiptForm"),
     arSummaryTbody: document.getElementById("arSummaryTbody"),
-    arCreditTbody: document.getElementById("arCreditTbody"),
     arPaidTbody: document.getElementById("arPaidTbody"),
-    receiptTbody: document.getElementById("receiptTbody"),
-    arSearchFilter: document.getElementById("arSearchFilter"),
+    arDateStart: document.getElementById("arDateStart"),
+    arDateEnd: document.getElementById("arDateEnd"),
+    arCustomerFilter: document.getElementById("arCustomerFilter"),
+    arProductFilter: document.getElementById("arProductFilter"),
+    arFilterClear: document.getElementById("arFilterClear"),
     aDate: document.getElementById("aDate"),
     aWarehouse: document.getElementById("aWarehouse"),
     aProduct: document.getElementById("aProduct"),
@@ -2264,6 +2431,7 @@
     trendChart: document.getElementById("trendChart"),
     bestsellerProductTbody: document.getElementById("bestsellerProductTbody"),
   };
+  saveState(state);
 
   function setTheme(dark) {
     document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
@@ -2393,14 +2561,15 @@
 
   function renderPurchases() {
     const q = els.purchaseSearch.value.trim().toLowerCase();
-    const rows = filteredPurchaseRows(state, q);
+    const dr = listDateRange(els.purchaseDateStart, els.purchaseDateEnd);
+    const rows = filteredPurchaseRows(state, q, dr.start, dr.end);
     const { page, pages, total, slice, pageSize } = paginateWithPager("purchases", rows);
     syncPagerControls("purchases", { page, pages, total, pageSize });
     const allIdSet = new Set(rows.map((r) => r.id));
     els.purchaseTbody.innerHTML = "";
     slice.forEach((p) => {
       const tr = document.createElement("tr");
-      const sub = num(p.qty) * num(p.price);
+      const sub = purchaseLineSubtotal(p);
       const checked = purchaseCheckedIds.has(p.id) ? " checked" : "";
       tr.innerHTML = `
         <td data-label="选择"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600" data-pick-p="${escapeHtml(p.id)}"${checked} /></td>
@@ -2410,6 +2579,7 @@
         <td data-label="商品">${p.product || ""}</td>
         <td data-label="数量">${formatQtyCell(p.qty, state, p.unitId)}</td>
         <td data-label="单价" class="lx-money">${money(p.price)}</td>
+        <td data-label="额外费用" class="lx-money">${formatExtraFeeCell(p.extraFee)}</td>
         <td data-label="小计" class="lx-money">${money(sub)}</td>
         <td data-label="操作" class="text-right">
           <div class="flex flex-wrap justify-end gap-1.5">${lxIconEdit(`data-edit-p="${p.id}"`)}${lxIconDel(`data-del-p="${p.id}"`)}</div>
@@ -2439,6 +2609,7 @@
             <div class="form-group"><label>单位</label><input type="text" id="m_unit" list="unitList" autocomplete="off" value="${escapeHtml(unitNameById(state, p.unitId || defaultUnitId(state)))}"></div>
             <div class="form-group"><label>数量</label><input type="number" id="m_qty" step="0.01" value="${num(p.qty)}"></div>
             <div class="form-group"><label>单价</label><input type="number" id="m_price" step="0.01" value="${num(p.price)}"></div>
+            <div class="form-group"><label>额外费用</label><input type="number" id="m_extra_fee" step="0.01" min="0" value="${num(p.extraFee) || ""}" placeholder="选填"></div>
           </form>`;
         openModal("编辑进货", body, () => {
           const next = {
@@ -2451,6 +2622,7 @@
             unitId: resolveUnitIdFromInput(state, document.getElementById("m_unit").value),
             qty: num(document.getElementById("m_qty").value),
             price: num(document.getElementById("m_price").value),
+            extraFee: parseOptionalFee(document.getElementById("m_extra_fee").value),
           };
           if (!next.product) return alert("请填写商品名称");
           ensureMasterDef(state, "supplierDefs", next.supplier);
@@ -2492,7 +2664,8 @@
   function renderSales() {
     syncAllComputed(state);
     const q = els.salesSearch.value.trim().toLowerCase();
-    const rows = filteredSalesRows(state, q);
+    const dr = listDateRange(els.salesDateStart, els.salesDateEnd);
+    const rows = filteredSalesRows(state, q, dr.start, dr.end);
     const { page, pages, total, slice, pageSize } = paginateWithPager("sales", rows);
     syncPagerControls("sales", { page, pages, total, pageSize });
     const allIdSet = new Set(rows.map((r) => r.id));
@@ -2500,6 +2673,7 @@
     slice.forEach((s) => {
       const tr = document.createElement("tr");
       const rem = creditRemaining(s);
+      const paidTotal = salePaidTotal(s);
       const pay = s.paymentType === "credit" ? "赊账" : "现款";
       const checked = salesCheckedIds.has(s.id) ? " checked" : "";
       tr.innerHTML = `
@@ -2511,9 +2685,10 @@
         <td data-label="客户">${s.customerName || ""}</td>
         <td data-label="数量">${formatQtyCell(s.qty, state, s.unitId)}</td>
         <td data-label="单价" class="lx-money">${money(s.price)}</td>
+        <td data-label="额外费用" class="lx-money">${formatExtraFeeCell(s.extraFee)}</td>
         <td data-label="成本" class="lx-money">${money(s.costAtSale)}</td>
         <td data-label="小计" class="lx-money">${money(s.amount)}</td>
-        <td data-label="已收" class="lx-money">${money(Math.min(num(s.amount), Math.max(0, num(s.paidAtSale))))}</td>
+        <td data-label="已收合计" class="lx-money">${money(paidTotal)}</td>
         <td data-label="欠款">${rem > 0.0001 ? `<span class="lx-money">${money(rem)}</span>` : "—"}</td>
         <td data-label="买方">${s.buyer || ""}</td>
         <td data-label="操作" class="text-right">
@@ -2543,6 +2718,7 @@
             <div class="form-group"><label>单位</label><input type="text" id="m_unit" list="unitList" autocomplete="off" value="${escapeHtml(unitNameById(state, s.unitId || defaultUnitId(state)))}"></div>
             <div class="form-group"><label>数量</label><input type="number" id="m_qty" step="0.01" value="${num(s.qty)}"></div>
             <div class="form-group"><label>单价</label><input type="number" id="m_price" step="0.01" value="${num(s.price)}"></div>
+            <div class="form-group"><label>额外费用</label><input type="number" id="m_extra_fee" step="0.01" min="0" value="${num(s.extraFee) || ""}" placeholder="选填"></div>
             <div class="form-group"><label>客户</label><input type="text" id="m_customer" list="customerList" autocomplete="off" value="${escapeHtml(s.customerName || "")}"></div>
             <div class="form-group"><label>当场已收</label><input type="number" id="m_paid" step="0.01" value="${num(s.paidAtSale)}"></div>
             <div class="form-group" style="grid-column:span 2"><label>买方</label><input type="text" id="m_buyer" value="${escapeHtml(s.buyer || "")}"></div>
@@ -2557,6 +2733,7 @@
             unitId: resolveUnitIdFromInput(state, document.getElementById("m_unit").value),
             qty: num(document.getElementById("m_qty").value),
             price: num(document.getElementById("m_price").value),
+            extraFee: parseOptionalFee(document.getElementById("m_extra_fee").value),
             customerName: document.getElementById("m_customer").value.trim(),
             paidAtSale: Math.max(0, num(document.getElementById("m_paid").value)),
             buyer: document.getElementById("m_buyer").value.trim(),
@@ -2564,7 +2741,7 @@
           if (!next.product) return alert("请填写商品名称");
           upsertProductDef(state, next.product, next.unitId);
           if (next.customerName) ensureMasterDef(state, "customerDefs", next.customerName);
-          next.amount = +(num(next.qty) * num(next.price)).toFixed(2);
+          next.amount = saleLineSubtotal(next);
           next.paidAtSale = Math.min(next.amount, next.paidAtSale);
 
           state.sales = state.sales.map((x) => (x.id === id ? next : x));
@@ -2597,82 +2774,31 @@
 
   function renderReceivables() {
     syncAllComputed(state);
-    const arQ = (els.arSearchFilter && els.arSearchFilter.value.trim()) || "";
-    const arQL = arQ.toLowerCase();
+    const arF = readArFilters();
+    const hasActiveFilter = !!(arF.date.start || arF.date.end || arF.customer || arF.product);
 
-    function arTextMatch(hay, needle) {
-      if (!needle) return true;
-      return String(hay || "").toLowerCase().includes(needle);
-    }
-
-    function saleCustLabel(s) {
-      return String(s.customerName || "").trim() || "（未填写客户）";
-    }
-
-    function saleMatchesSearch(s) {
-      if (!arQL) return true;
-      return arTextMatch(saleCustLabel(s), arQL) || arTextMatch(s.product, arQL);
-    }
-
-    function summaryCustomerVisible(name) {
-      if (!arQL) return true;
-      if (arTextMatch(name, arQL)) return true;
-      return state.sales.some((s) => {
-        if (creditRemaining(s) <= 0.001) return false;
-        if (saleCustLabel(s) !== name) return false;
-        return arTextMatch(s.product, arQL);
-      });
-    }
-
-    const balances = arCustomerBalances(state);
-    const summaryRowObjs = Array.from(balances.entries())
-      .filter(([name]) => summaryCustomerVisible(name))
-      .sort((a, b) => b[1] - a[1])
-      .map(([name, bal]) => ({ name, bal }));
-    const smMeta = paginateWithPager("arSummary", summaryRowObjs);
+    const summaryUnpaidRows = state.sales
+      .filter((s) => creditRemaining(s) > 0.001 && saleMatchesArFilters(s, arF))
+      .sort(
+        (a, b) =>
+          saleCustLabel(a).localeCompare(saleCustLabel(b), "zh-CN") || cmpDate(a.date, b.date) || String(a.id).localeCompare(String(b.id))
+      );
+    const smMeta = paginateWithPager("arSummary", summaryUnpaidRows);
     syncPagerControls("arSummary", smMeta);
     els.arSummaryTbody.innerHTML = "";
-    if (!summaryRowObjs.length) {
+    if (!summaryUnpaidRows.length) {
       const tr = document.createElement("tr");
-      tr.innerHTML =
-        balances.size === 0
-          ? `<td colspan="2" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">暂无欠款客户</td>`
-          : `<td colspan="2" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录（试试别的关键词）" : "暂无欠款客户"}</td>`;
+      const emptyHint = hasActiveFilter ? "无匹配记录（调整筛选条件）" : "暂无欠款客户";
+      tr.innerHTML = `<td colspan="9" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${emptyHint}</td>`;
       els.arSummaryTbody.appendChild(tr);
     } else {
-      smMeta.slice.forEach(({ name, bal }) => {
+      smMeta.slice.forEach((s) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td data-label="客户">${name}</td><td data-label="应收余额" class="lx-money">${money(bal)}</td>`;
+        tr.innerHTML = arUnpaidRowHtml(s);
         els.arSummaryTbody.appendChild(tr);
       });
     }
-
-    els.arCreditTbody.innerHTML = "";
-    const unpaidRows = state.sales
-      .filter((s) => creditRemaining(s) > 0.001 && saleMatchesSearch(s))
-      .sort((a, b) => cmpDate(a.date, b.date));
-    const crMeta = paginateWithPager("arCredit", unpaidRows);
-    syncPagerControls("arCredit", crMeta);
-    if (!unpaidRows.length) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="8" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无未结清欠款"}</td>`;
-      els.arCreditTbody.appendChild(tr);
-    } else {
-      crMeta.slice.forEach((s) => {
-        const tr = document.createElement("tr");
-        const rem = creditRemaining(s);
-        tr.innerHTML = `
-        <td data-label="日期">${s.date}</td>
-        <td data-label="客户">${String(s.customerName || "").trim() || "（未填写客户）"}</td>
-        <td data-label="商品">${s.product || ""}</td>
-        <td data-label="小计" class="lx-money">${money(s.amount)}</td>
-        <td data-label="当场已收" class="lx-money">${money(s.paidAtSale)}</td>
-        <td data-label="收款核销" class="lx-money">${money(s.arReceiptAllocated)}</td>
-        <td data-label="剩余欠款" class="lx-money">${money(rem)}</td>
-        <td data-label="已收款"><input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 dark:border-slate-600" data-ar-paid="${s.id}" /></td>`;
-        els.arCreditTbody.appendChild(tr);
-      });
-    }
+    bindArPaidCheckboxes(els.arSummaryTbody);
 
     const paidTbody = document.getElementById("arPaidTbody");
     if (paidTbody) {
@@ -2682,14 +2808,14 @@
           (s) =>
             creditRemaining(s) <= 0.001 &&
             (num(s.arReceiptAllocated) > 0 || num(s.arManualPaid) > 0 || num(s.paidAtSale) < num(s.amount)) &&
-            saleMatchesSearch(s)
+            saleMatchesArFilters(s, arF)
         )
         .sort((a, b) => -cmpDate(a.date, b.date));
       const pdMeta = paginateWithPager("arPaid", paidRows);
       syncPagerControls("arPaid", pdMeta);
       if (!paidRows.length) {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td colspan="8" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无已结清记录"}</td>`;
+        tr.innerHTML = `<td colspan="8" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${hasActiveFilter ? "无匹配记录" : "暂无已结清记录"}</td>`;
         paidTbody.appendChild(tr);
       } else {
         pdMeta.slice.forEach((s) => {
@@ -2710,54 +2836,6 @@
       }
     }
 
-    els.receiptTbody.innerHTML = "";
-    const receiptMatches = (r) => {
-      if (!arQL) return true;
-      return arTextMatch(r.customerName, arQL) || arTextMatch(r.note, arQL);
-    };
-    const receiptRows = [...state.receipts].filter(receiptMatches).sort((a, b) => -cmpDate(a.date, b.date));
-    const rcMeta = paginateWithPager("receipts", receiptRows);
-    syncPagerControls("receipts", rcMeta);
-    if (!receiptRows.length) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `<td colspan="5" class="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">${arQL ? "无匹配记录" : "暂无收款记录"}</td>`;
-      els.receiptTbody.appendChild(tr);
-    } else {
-      rcMeta.slice.forEach((r) => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-          <td data-label="日期">${r.date}</td>
-          <td data-label="客户">${r.customerName || ""}</td>
-          <td data-label="金额" class="lx-money">${money(r.amount)}</td>
-          <td data-label="备注">${r.note || ""}</td>
-          <td data-label="操作" class="text-right">${lxIconDel(`data-del-r="${r.id}"`)}</td>`;
-        els.receiptTbody.appendChild(tr);
-      });
-    }
-    els.receiptTbody.querySelectorAll("[data-del-r]").forEach((b) => {
-      b.addEventListener("click", () => {
-        const id = b.getAttribute("data-del-r");
-        if (!confirm("确定删除该收款记录？（核销会重算）")) return;
-        state.receipts = state.receipts.filter((x) => x.id !== id);
-        saveState(state);
-        fullRender();
-      });
-    });
-
-    // Bind manual paid checkbox
-    els.arCreditTbody.querySelectorAll("[data-ar-paid]").forEach((cb) => {
-      cb.addEventListener("change", () => {
-        const id = cb.getAttribute("data-ar-paid");
-        const s = state.sales.find((x) => x.id === id);
-        if (!s) return;
-        const rem = Math.max(0, creditRemaining(s));
-        if (cb.checked && rem > 0) {
-          s.arManualPaid = Math.max(0, num(s.arManualPaid)) + rem;
-          saveState(state);
-          fullRender();
-        }
-      });
-    });
   }
 
   function renderFixedCostTables() {
@@ -3137,7 +3215,7 @@
     fp.forEach((p) => {
       const k = keyFor(p.date);
       const o = map.get(k) || { revenue: 0, cogs: 0, expense: 0 };
-      o.expense = (o.expense || 0) + num(p.qty) * num(p.price);
+      o.expense = (o.expense || 0) + purchaseLineSubtotal(p);
       map.set(k, o);
     });
 
@@ -3248,7 +3326,6 @@
 
   els.pDate.value = todayISO();
   els.sDate.value = todayISO();
-  els.rcDate.value = todayISO();
   els.aDate.value = todayISO();
   els.tDate.value = todayISO();
 
@@ -3264,6 +3341,7 @@
       unitId: resolveUnitIdFromInput(state, els.pUnit && els.pUnit.value),
       qty: num(els.pQty.value),
       price: num(els.pPrice.value),
+      extraFee: parseOptionalFee(els.pExtraFee && els.pExtraFee.value),
     };
     if (!row.product) return alert("请填写商品名称");
     ensureMasterDef(state, "supplierDefs", row.supplier);
@@ -3274,11 +3352,14 @@
     els.pProduct.value = "";
     els.pQty.value = "";
     els.pPrice.value = "";
+    if (els.pExtraFee) els.pExtraFee.value = "";
     fullRender();
   });
 
   function salesFormLineAmount() {
-    return +(num(els.sQty?.value) * num(els.sPrice?.value)).toFixed(2);
+    return +(
+      num(els.sQty?.value) * num(els.sPrice?.value) + parseOptionalFee(els.sExtraFee && els.sExtraFee.value)
+    ).toFixed(2);
   }
 
   function syncSalesPaidNowIfCash() {
@@ -3289,6 +3370,7 @@
   ["input", "change"].forEach((ev) => {
     els.sQty?.addEventListener(ev, syncSalesPaidNowIfCash);
     els.sPrice?.addEventListener(ev, syncSalesPaidNowIfCash);
+    els.sExtraFee?.addEventListener(ev, syncSalesPaidNowIfCash);
   });
 
   els.salesForm.addEventListener("submit", (e) => {
@@ -3298,7 +3380,8 @@
     const paidNow = num(els.sPaidNow.value);
     const qty = num(els.sQty.value);
     const price = num(els.sPrice.value);
-    const amount = +(qty * price).toFixed(2);
+    const extraFee = parseOptionalFee(els.sExtraFee && els.sExtraFee.value);
+    const amount = +(qty * price + extraFee).toFixed(2);
     if (paymentType === "credit" && !customerName) return alert("赊账必须填写客户");
     const paidAtSale =
       paymentType === "cash"
@@ -3316,6 +3399,7 @@
       unitId: resolveUnitIdFromInput(state, els.sUnit && els.sUnit.value),
       qty,
       price,
+      extraFee,
       amount,
       buyer: els.sBuyer.value.trim(),
       paymentType,
@@ -3330,37 +3414,29 @@
     els.sProduct.value = "";
     els.sQty.value = "";
     els.sPrice.value = "";
+    if (els.sExtraFee) els.sExtraFee.value = "";
     els.sPaidNow.value = "0";
     els.sCustomer.value = "";
     els.sBuyer.value = "";
     fullRender();
   });
 
-  els.receiptForm.addEventListener("submit", (e) => {
-    e.preventDefault();
-    const row = {
-      id: uid(),
-      date: els.rcDate.value,
-      customerName: els.rcCustomer.value.trim(),
-      amount: num(els.rcAmount.value),
-      note: els.rcNote.value.trim(),
-    };
-    if (!row.customerName) return alert("请填写客户");
-    if (row.amount <= 0) return alert("金额须大于 0");
-    ensureMasterDef(state, "customerDefs", row.customerName);
-    state.receipts.push(row);
-    saveState(state);
-    els.rcAmount.value = "";
-    els.rcNote.value = "";
-    fullRender();
-  });
+  function bumpArFilters() {
+    ["arSummary", "arPaid"].forEach((k) => {
+      ensureListPager(k).page = 1;
+    });
+    renderReceivables();
+  }
 
-  if (els.arSearchFilter) {
-    els.arSearchFilter.addEventListener("input", () => {
-      ["arSummary", "arCredit", "arPaid", "receipts"].forEach((k) => {
-        ensureListPager(k).page = 1;
-      });
-      renderReceivables();
+  if (els.arCustomerFilter) els.arCustomerFilter.addEventListener("input", bumpArFilters);
+  if (els.arProductFilter) els.arProductFilter.addEventListener("input", bumpArFilters);
+  if (els.arFilterClear) {
+    els.arFilterClear.addEventListener("click", () => {
+      if (els.arDateStart) els.arDateStart.value = "";
+      if (els.arDateEnd) els.arDateEnd.value = "";
+      if (els.arCustomerFilter) els.arCustomerFilter.value = "";
+      if (els.arProductFilter) els.arProductFilter.value = "";
+      bumpArFilters();
     });
   }
 
@@ -3509,7 +3585,8 @@
       const t = e.target;
       if (!t) return;
       if (t.id === "purchaseSelectAll") {
-        const rows = filteredPurchaseRows(state, els.purchaseSearch.value.trim().toLowerCase());
+        const dr = listDateRange(els.purchaseDateStart, els.purchaseDateEnd);
+        const rows = filteredPurchaseRows(state, els.purchaseSearch.value.trim().toLowerCase(), dr.start, dr.end);
         if (t.checked) rows.forEach((p) => purchaseCheckedIds.add(p.id));
         else rows.forEach((p) => purchaseCheckedIds.delete(p.id));
         renderPurchases();
@@ -3546,7 +3623,8 @@
       const t = e.target;
       if (!t) return;
       if (t.id === "salesSelectAll") {
-        const rows = filteredSalesRows(state, els.salesSearch.value.trim().toLowerCase());
+        const dr = listDateRange(els.salesDateStart, els.salesDateEnd);
+        const rows = filteredSalesRows(state, els.salesSearch.value.trim().toLowerCase(), dr.start, dr.end);
         if (t.checked) rows.forEach((s) => salesCheckedIds.add(s.id));
         else rows.forEach((s) => salesCheckedIds.delete(s.id));
         renderSales();
@@ -3555,6 +3633,23 @@
         if (t.checked) salesCheckedIds.add(id);
         else salesCheckedIds.delete(id);
         renderSales();
+      }
+    });
+  }
+
+  const tabReceivables = document.getElementById("tab-receivables");
+  if (tabReceivables) {
+    tabReceivables.addEventListener("click", (e) => {
+      const btn = e.target && e.target.closest && e.target.closest("[data-ar-settle-customer-key]");
+      if (!btn) return;
+      const enc = btn.getAttribute("data-ar-settle-customer-key");
+      if (enc == null || enc === "") return;
+      settleCustomerAr(enc);
+    });
+    tabReceivables.addEventListener("change", (e) => {
+      const inp = e.target;
+      if (inp && inp.matches && inp.matches("[data-ar-paid-at-sale]")) {
+        applyPaidAtSaleEdit(inp.getAttribute("data-ar-paid-at-sale"), inp.value);
       }
     });
   }
@@ -3607,6 +3702,51 @@
     });
   }
   wireMainFormProductUnits();
+
+  function wireListDateFilter(opts) {
+    const { startEl, endEl, clearBtn, pagerKey, onRender } = opts;
+    const bump = () => {
+      if (pagerKey) ensureListPager(pagerKey).page = 1;
+      onRender();
+    };
+    if (startEl) startEl.addEventListener("change", bump);
+    if (endEl) endEl.addEventListener("change", bump);
+    if (clearBtn) {
+      clearBtn.addEventListener("click", () => {
+        if (startEl) startEl.value = "";
+        if (endEl) endEl.value = "";
+        bump();
+      });
+    }
+  }
+
+  wireListDateFilter({
+    startEl: els.purchaseDateStart,
+    endEl: els.purchaseDateEnd,
+    clearBtn: els.purchaseDateClear,
+    pagerKey: "purchases",
+    onRender: () => {
+      purchaseCheckedIds.clear();
+      renderPurchases();
+    },
+  });
+  wireListDateFilter({
+    startEl: els.salesDateStart,
+    endEl: els.salesDateEnd,
+    clearBtn: els.salesDateClear,
+    pagerKey: "sales",
+    onRender: () => {
+      salesCheckedIds.clear();
+      renderSales();
+    },
+  });
+  wireListDateFilter({
+    startEl: els.arDateStart,
+    endEl: els.arDateEnd,
+    clearBtn: null,
+    pagerKey: "arSummary",
+    onRender: () => bumpArFilters(),
+  });
 
   els.purchaseSearch.addEventListener("input", () => {
     ensureListPager("purchases").page = 1;
@@ -3728,7 +3868,6 @@
     if (k === "analyticsFilters") resetAnalyticsFilters();
     else if (k === "purchases") clearAllPurchases();
     else if (k === "sales") clearAllSales();
-    else if (k === "receipts") clearAllReceipts();
     else if (k === "transfers") clearAllTransfers();
     else if (k === "adjustments") clearAllAdjustments();
     else if (k === "warehouses") clearWarehousesExceptFirst();
@@ -3738,6 +3877,16 @@
     else if (k === "fixedCosts") clearFixedCostEntriesOnly();
   });
 
+  refreshReceivables = renderReceivables;
+  rerenderForListPagerKey = function (key) {
+    if (key === "purchases") renderPurchases();
+    else if (key === "sales") renderSales();
+    else if (key === "arSummary" || key === "arPaid") renderReceivables();
+    else if (key === "inventory" || key === "transfers" || key === "adjustments" || key === "warehouses") renderInventory();
+    else if (key === "productDefs" || key === "customerDefs" || key === "supplierDefs") renderInventory();
+    else if (key === "fixedCosts") renderInventory();
+    else if (key === "profitGroup" || key === "productStats" || key === "bestseller") renderAnalytics();
+  };
   fullRender();
   maybeBackupReminder();
   }
